@@ -4,16 +4,16 @@ import {fresh,toggle,settle,applySettings,GAME_MS,CHANGE_MS} from '../engine.mjs
 import {loadPreferences,savePreferences,PREF_KEY} from '../preferences.mjs';
 import {timerCue,changeoverCount,SOUND_PLANS,MatchSounds} from '../sounds.mjs';
 const memory=()=>{const data=new Map();return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};};
-test('preferences retain colors for both team counts, durations and mute across reload',()=>{
+test('preferences retain five ordered colors, durations and mute across reload',()=>{
  const storage=memory(), prefs=loadPreferences(storage);
- prefs.colorsByTeams={4:{A:'White',B:'Blue',C:'Pink',D:'Black'},5:{A:'Red',B:'Blue',C:'Green',D:'Black',E:'Yellow'}};
+ prefs.colors={A:'White',B:'Blue',C:'Pink',D:'Black',E:'Yellow'};
  prefs.gameMs=90000;prefs.changeMs=45000;prefs.sounds=false;
  assert.equal(savePreferences(storage,prefs),true);assert.deepEqual(loadPreferences(storage),prefs);
 });
 test('malformed preferences, storage denial and old duration migrate safely',()=>{
  const storage=memory();storage.setItem('touchline-game-duration','150000');assert.equal(loadPreferences(storage).gameMs,150000);
  storage.setItem(PREF_KEY,JSON.stringify({gameMs:-1,changeMs:0,sounds:'yes',colorsByTeams:{4:{A:'Red',B:'Red'}}}));
- const prefs=loadPreferences(storage);assert.equal(prefs.gameMs,150000);assert.equal(prefs.changeMs,CHANGE_MS);assert.equal(prefs.sounds,true);assert.deepEqual(prefs.colorsByTeams,{});
+ const prefs=loadPreferences(storage);assert.equal(prefs.gameMs,150000);assert.equal(prefs.changeMs,CHANGE_MS);assert.equal(prefs.sounds,true);assert.equal(new Set(Object.values(prefs.colors)).size,5);
  storage.setItem(PREF_KEY,'{');assert.equal(loadPreferences(storage).gameMs,GAME_MS);
  const denied={getItem(){throw Error('denied');},setItem(){throw Error('denied');}};assert.equal(savePreferences(denied,prefs),false);assert.equal(loadPreferences(denied).gameMs,GAME_MS);
 });

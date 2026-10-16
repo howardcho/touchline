@@ -1,6 +1,6 @@
 import {loadPreferences, savePreferences, durationOK} from './preferences.mjs';
 import {MatchSounds, timerCue, changeoverCount} from './sounds.mjs';
-import {SCHEDULES, PALETTE, validColors, applySettings, assignColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime} from './engine.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false;
 const KEY = 'touchline-session-v1';
@@ -11,7 +11,7 @@ function storageWarning() { $('save-note').textContent='Browser storage is unava
 function persist() {
   if(state) {
     preferences.gameMs=state.gameMs; preferences.changeMs=state.changeMs;
-    preferences.colorsByTeams[state.teams]={...state.colors};
+    preferences.colors=completeColors({...preferences.colors,...state.colors});
   }
   try {
     if(state) localStorage.setItem(KEY,JSON.stringify(state)); else localStorage.removeItem(KEY);
@@ -22,7 +22,7 @@ function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
     if(s) s.gameMs = Number.isInteger(s.gameMs) && s.gameMs>=1000 && s.gameMs<=3600000 && s.gameMs%1000===0 ? s.gameMs : GAME_MS;
-    if(s && [4,5].includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : assignColors(s.teams); s.phaseMs=Math.max(s.remaining,durationOK(s.phaseMs)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; preferences.colorsByTeams[s.teams]={...s.colors}; }
+    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,durationOK(s.phaseMs)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; preferences.colors=completeColors({...preferences.colors,...s.colors}); }
   } catch {}
 }
 function colorName(t) { return state.colors[t]; }
@@ -31,6 +31,10 @@ function render() {
   $('setup-time').textContent = formatTime(preferences.gameMs);
   $('setup-changeover').textContent = formatTime(preferences.changeMs);
   $('setup').hidden = !!state; $('board').hidden = !state;
+  for(const button of document.querySelectorAll('[data-teams]')) {
+    const count=Number(button.dataset.teams), colors=colorsForTeams(count,preferences.colors);
+    button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
+  }
   if(!state) return;
   const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover';
   $('team-summary').textContent = `${teams} TEAMS · ${SCHEDULES[teams].length}-GAME ROTATION`;
@@ -50,7 +54,7 @@ function render() {
   $('add-time').disabled=remaining>=3600000;
   $('loop-note').textContent=`Loop ${Math.floor((game-1)/SCHEDULES[teams].length)+1} · Game ${(game-1)%SCHEDULES[teams].length+1} of ${SCHEDULES[teams].length}`;
   const shared=[...matchup(teams,game)].filter(t=>matchup(teams,game+1).includes(t));
-  $('transition').textContent=shared.length?`Back-to-back: ${shared.map(colorName).join(' & ')} plays again next game. Allow the full changeover.`:'';
+  $('transition').textContent=shared.length?`Back-to-back: ${shared.map(colorName).join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
 function announce(text) { $('announcement').textContent=text; }
 function playCue(cue) { if(cue && preferences.sounds && document.visibilityState==='visible') sounds.play(cue); }
@@ -72,7 +76,8 @@ function tick() {
 }
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
-  state=fresh(teams, preferences.colorsByTeams[teams], preferences.gameMs, preferences.changeMs);
+  preferences.setupTeams=teams;
+  state=fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs);
   persist();render();$('start').focus();
 });
 $('start').onclick=async()=> {
@@ -95,25 +100,36 @@ for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onc
 };
 for(const [id,delta] of [['previous',-1],['next',1]]) $(id).onclick=()=>{sounds.stop();move(state,delta);persist();render();announce(`Game ${state.game}. Timer paused.`);};
 function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`; }
-$('settings').onclick=()=> {
-  $('color-fields').innerHTML = 'ABCDE'.slice(0,state.teams).split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${state.colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
-  $('game-minutes').value=Math.floor(state.gameMs/60000);
-  $('game-seconds').value=(state.gameMs/1000)%60;
-  $('change-minutes').value=Math.floor(state.changeMs/60000);
-  $('change-seconds').value=(state.changeMs/1000)%60;
+function renderColorFields(colors) {
+  $('color-fields').innerHTML = 'ABCDE'.split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
+}
+function openSettings() {
+  $('session-actions').hidden=!state;
+  $('duration-settings-help').textContent=state ? '1 second to 60 minutes. Changing either duration resets the current game timer and pauses it. Color-only changes keep the timer running.' : '1 second to 60 minutes. These settings are used when you choose a team count to start a rotation.';
+  const source=state || preferences;
+  renderColorFields(completeColors({...preferences.colors,...(state?.colors || {})}));
+  $('game-minutes').value=Math.floor(source.gameMs/60000);
+  $('game-seconds').value=(source.gameMs/1000)%60;
+  $('change-minutes').value=Math.floor(source.changeMs/60000);
+  $('change-seconds').value=(source.changeMs/1000)%60;
   $('sounds-enabled').checked=preferences.sounds;
-  $('sound-status').textContent='';
-  $('settings-error').textContent='';
+  $('sound-status').textContent='';$('settings-error').textContent='';
   $('options-dialog').showModal();
-};
+}
+$('settings').onclick=openSettings;
+$('setup-settings').onclick=openSettings;
 $('settings-form').onsubmit=event=>{
   event.preventDefault();
-  const colors = Object.fromEntries('ABCDE'.slice(0,state.teams).split('').map(t=>[t,document.querySelector(`[name="color-${t}"]`).value]));
+  const colors = Object.fromEntries('ABCDE'.split('').map(t=>[t,document.querySelector(`[name="color-${t}"]`).value]));
   const gameMs = (Number($('game-minutes').value)*60+Number($('game-seconds').value))*1000;
   const changeMs=(Number($('change-minutes').value)*60+Number($('change-seconds').value))*1000;
   try {
-    const changed = gameMs!==state.gameMs || changeMs!==state.changeMs;
-    applySettings(state,colors,gameMs,Date.now(),changeMs);
+    const changed = !!state && (gameMs!==state.gameMs || changeMs!==state.changeMs);
+    if(!validColors(5,colors))throw new Error('Choose five different team colors.');
+    const target=state || fresh(5);
+    applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
+    preferences.gameMs=gameMs;preferences.changeMs=changeMs;
+    preferences.colors={...colors};
     preferences.sounds=$('sounds-enabled').checked;
     if(changed || !preferences.sounds)sounds.stop();
     persist(); render(); $('options-dialog').close();
@@ -121,13 +137,15 @@ $('settings-form').onsubmit=event=>{
   } catch(error) { $('settings-error').textContent=error.message; }
 };
 $('restart').onclick=()=>{sounds.stop();state=fresh(state.teams, state.colors, state.gameMs, state.changeMs);persist();render();$('options-dialog').close();$('start').focus();};
-$('change-teams').onclick=()=>{sounds.stop();state=null;persist();render();$('options-dialog').close();document.querySelector('[data-teams]').focus();};
+function backToSetup(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
+$('change-teams').onclick=backToSetup;
+$('back-to-setup').onclick=backToSetup;
 $('schedule-button').onclick=()=>{
   const a=audit(state.teams), s=SCHEDULES[state.teams];
-  $('schedule-title').textContent=`${state.teams} teams. ${s.length} games. Repeat.`;
-  $('audit-summary').textContent=`Each team plays ${a.counts.A} games (${Number((a.counts.A*state.gameMs/60000).toFixed(2))} minutes) per loop. Every pairing appears ${state.teams===4?'once':'twice'}. Maximum rest: ${Math.max(...Object.values(a.maxRest))} games.`;
+  $('schedule-title').textContent=`${state.teams} teams. ${s.length} ${s.length===1?'game':'games'}. Repeat.`;
+  $('audit-summary').textContent=`Each team plays ${a.counts.A} ${a.counts.A===1?'game':'games'} (${Number((a.counts.A*state.gameMs/60000).toFixed(2))} minutes) per loop. Every pairing appears ${state.teams===5?'twice':'once'}. Maximum rest: ${Math.max(...Object.values(a.maxRest))} ${Math.max(...Object.values(a.maxRest))===1?'game':'games'}.`;
   $('schedule-list').innerHTML=s.map((m,i)=>`<div class="schedule-row ${i===(state.game-1)%s.length?'active':''}"><span>Game ${i+1}</span><span>${colorName(m[0])} vs ${colorName(m[1])}</span></div>`).join('');
-  $('audit-details').textContent=a.conflicts.length?'Exact supplied schedule: consecutive appearances at '+a.conflicts.map(c=>`${colorName(c.team)}, ${c.from}→${c.to}`).join('; ')+'. Four teams cannot play all six unique matchups without consecutive appearances: after any pairing, the only disjoint pairing is its complement.':'Verified across the loop boundary: no consecutive appearances. Every team rests at most two games.';
+  $('audit-details').textContent=a.conflicts.length?(state.teams>=4?'Exact supplied schedule: consecutive appearances at ':'Repeating schedule: consecutive appearances at ')+a.conflicts.map(c=>`${colorName(c.team)}, ${c.from}→${c.to}`).join('; ')+(state.teams===4 ? '. Four teams cannot play all six unique matchups without consecutive appearances: after any pairing, the only disjoint pairing is its complement.' : state.teams===3 ? '. With three teams, every two matchups share one team. Each team plays twice per loop and rests at most one game.' : '. With two teams, both teams play every game. Use the changeover for a break.'):'Verified across the loop boundary: no consecutive appearances. Every team rests at most two games.';
   $('schedule-dialog').showModal();
 };
 for(const button of document.querySelectorAll('[data-sound]')) button.onclick=async()=>{

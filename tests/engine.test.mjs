@@ -15,7 +15,7 @@ test('background recovery agrees with stepped clock for many elapsed times',()=>
 test('manual navigation pauses, resets timer, respects first game and loop',()=>{let s=fresh(4);toggle(s,0);move(s,-1);assert.equal(s.game,1);assert.equal(s.running,false);assert.equal(s.remaining,GAME_MS);move(s,6);assert.equal(s.game,7);assert.equal(matchup(s.teams,s.game),'AB');assert.equal(s.running,false);});
 test('restored running session recovers correct phase and game',()=>{let s=fresh(5);toggle(s,100);s=JSON.parse(JSON.stringify(s));settle(s,100+20*270000+250000);assert.equal(s.game,21);assert.equal(s.phase,'changeover');assert.equal(s.remaining,20000);});
 
-test('random assignments use exactly the requested colors and remain fixed across navigation',()=>{for(const t of [4,5]) {const mapping=assignColors(t,()=>0);assert.deepEqual(Object.keys(mapping),'ABCDE'.slice(0,t).split(''));assert.deepEqual(Object.values(mapping).sort(),COLORS.slice(0,t).sort());assert.notDeepEqual(mapping,assignColors(t,()=>.999));let s=fresh(t,mapping);move(s,50);assert.deepEqual(s.colors,mapping);assert.deepEqual(fresh(t,s.colors).colors,mapping);}});
+test('ordered colors use the first requested colors and stay fixed across navigation',()=>{for(const t of [2,3,4,5]) {const mapping=assignColors(t);assert.deepEqual(Object.keys(mapping),'ABCDE'.slice(0,t).split(''));assert.deepEqual(Object.values(mapping),COLORS.slice(0,t));let s=fresh(t,mapping);move(s,50);assert.deepEqual(s.colors,mapping);assert.deepEqual(fresh(t,s.colors).colors,mapping);}});
 
 test('custom duration covers boundaries, navigation and background catch-up',()=>{
   for(const duration of [1000,90000,3600000]) {

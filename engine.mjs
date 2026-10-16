@@ -1,4 +1,7 @@
+export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
+  2: ['AB'],
+  3: ['AB','AC','BC'],
   4: 'AB CD AC BD AD BC'.split(' '),
   5: 'AB CD AE BD CE AD BE AC DE BC AE BD AC BE CD AB DE BC AD CE'.split(' ')
 };
@@ -8,13 +11,18 @@ export function validColors(teams, colors) {
   const names = 'ABCDE'.slice(0, teams).split('').map(t => colors?.[t]);
   return new Set(names).size === teams && names.every(c => PALETTE.includes(c));
 }
-export function assignColors(teams, random = Math.random) {
-  const colors = COLORS.slice(0, teams);
-  for (let i = colors.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [colors[i], colors[j]] = [colors[j], colors[i]];
-  }
-  return Object.fromEntries('ABCDE'.slice(0, teams).split('').map((t,i) => [t, colors[i]]));
+export function colorsForTeams(teams, colors = Object.fromEntries(COLORS.map((c,i)=>['ABCDE'[i],c]))) {
+  return Object.fromEntries('ABCDE'.slice(0,teams).split('').map(t=>[t,colors[t]]));
+}
+export function assignColors(teams) { return colorsForTeams(teams); }
+// Preserve the existing ordered prefix when migrating an older session.
+export function completeColors(partial = {}) {
+  const used=new Set();
+  return Object.fromEntries('ABCDE'.split('').map(t=>{
+    const preferred=partial[t];
+    const color=PALETTE.includes(preferred) && !used.has(preferred) ? preferred : PALETTE.find(c=>!used.has(c));
+    used.add(color);return [t,color];
+  }));
 }
 export const GAME_MS = 240000, CHANGE_MS = 30000;
 export const matchup = (teams, game) => SCHEDULES[teams][(game - 1) % SCHEDULES[teams].length];
@@ -25,7 +33,7 @@ export function audit(teams) {
   const conflicts = s.flatMap((m, i) => [...m].filter(t => s[(i + 1) % s.length].includes(t)).map(team => ({team, from:i+1, to:(i+1)%s.length+1})));
   const maxRest = Object.fromEntries(labels.map(t => {
     const indices = s.flatMap((m,i) => m.includes(t) ? [i] : []);
-    return [t, Math.max(...indices.map((p,i) => (indices[(i+1)%indices.length] - p + s.length)%s.length - 1))];
+    return [t, Math.max(...indices.map((p,i) => ((indices[(i+1)%indices.length] - p + s.length)%s.length || s.length) - 1))];
   }));
   return {counts,pairs,conflicts,maxRest};
 }
