@@ -103,11 +103,20 @@ function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(s
 function renderColorFields(colors) {
   $('color-fields').innerHTML = 'ABCDE'.split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
 }
+function syncColorOptions() {
+  const selects=[...$('color-fields').querySelectorAll('select')];
+  for(const select of selects) {
+    const used=new Set(selects.filter(other=>other!==select).map(other=>other.value));
+    for(const option of select.options) option.disabled=used.has(option.value);
+  }
+}
+$('color-fields').addEventListener('change',()=>{syncColorOptions();$('settings-error').textContent='';});
 function openSettings() {
-  $('session-actions').hidden=!state;
-  $('duration-settings-help').textContent=state ? '1 second to 60 minutes. Changing either duration resets the current game timer and pauses it. Color-only changes keep the timer running.' : '1 second to 60 minutes. These settings are used when you choose a team count to start a rotation.';
-  const source=state || preferences;
-  renderColorFields(completeColors({...preferences.colors,...(state?.colors || {})}));
+  if(state)return;
+  $('duration-settings-help').textContent='1 second to 60 minutes. These settings are used when you choose a team count to start a rotation.';
+  const source=preferences;
+  renderColorFields(preferences.colors);
+  syncColorOptions();
   $('game-minutes').value=Math.floor(source.gameMs/60000);
   $('game-seconds').value=(source.gameMs/1000)%60;
   $('change-minutes').value=Math.floor(source.changeMs/60000);
@@ -116,30 +125,28 @@ function openSettings() {
   $('sound-status').textContent='';$('settings-error').textContent='';
   $('options-dialog').showModal();
 }
-$('settings').onclick=openSettings;
 $('setup-settings').onclick=openSettings;
 $('settings-form').onsubmit=event=>{
   event.preventDefault();
+  if(state)return;
   const colors = Object.fromEntries('ABCDE'.split('').map(t=>[t,document.querySelector(`[name="color-${t}"]`).value]));
   const gameMs = (Number($('game-minutes').value)*60+Number($('game-seconds').value))*1000;
   const changeMs=(Number($('change-minutes').value)*60+Number($('change-seconds').value))*1000;
   try {
-    const changed = !!state && (gameMs!==state.gameMs || changeMs!==state.changeMs);
     if(!validColors(5,colors))throw new Error('Choose five different team colors.');
-    const target=state || fresh(5);
+    const target=fresh(5);
     applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
     preferences.gameMs=gameMs;preferences.changeMs=changeMs;
     preferences.colors={...colors};
     preferences.sounds=$('sounds-enabled').checked;
-    if(changed || !preferences.sounds)sounds.stop();
+    if(!preferences.sounds)sounds.stop();
     persist(); render(); $('options-dialog').close();
-    announce(changed?'Settings saved. Current game timer reset and paused.':'Settings saved.');
+    announce('Settings saved.');
   } catch(error) { $('settings-error').textContent=error.message; }
 };
-$('restart').onclick=()=>{sounds.stop();state=fresh(state.teams, state.colors, state.gameMs, state.changeMs);persist();render();$('options-dialog').close();$('start').focus();};
-function backToSetup(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
-$('change-teams').onclick=backToSetup;
-$('back-to-setup').onclick=backToSetup;
+$('restart').onclick=()=>{sounds.stop();state=fresh(state.teams, state.colors, state.gameMs, state.changeMs);persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
+$('back-to-selection').onclick=backToSelection;
 $('schedule-button').onclick=()=>{
   const a=audit(state.teams), s=SCHEDULES[state.teams];
   $('schedule-title').textContent=`${state.teams} teams. ${s.length} ${s.length===1?'game':'games'}. Repeat.`;
