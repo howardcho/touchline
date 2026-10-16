@@ -1,0 +1,18 @@
+Touchline audio credits
+
+Referee whistle: "referee-whistle.wav" by Pablo-F
+https://freesound.org/people/Pablo-F/sounds/90743/
+Licensed under Creative Commons Attribution 3.0 Unported:
+https://creativecommons.org/licenses/by/3.0/
+Adapted for Touchline: trimmed, filtered, normalized, faded and sequenced
+into one kickoff blast and three full-time blasts. No endorsement implied.
+
+Stadium crowd: AI-generated for Touchline using Runway, October 16, 2026.
+Designed as a huge distant outdoor soccer crowd, heard through a TV broadcast.
+Adapted with low-pass filtering, warm bass EQ, compression, normalization,
+and a fade for a softer, muffled broadcast character.
+
+Announcer: AI-generated for Touchline using Runway, October 16, 2026.
+Preset voice: Mark. Lines: "One minute remaining!", "Five!", "Four!",
+"Three!", "Two!", "One!". Trimmed and normalized for offline playback.
+No voice cloning or real announcer impersonation.

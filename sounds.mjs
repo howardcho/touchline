@@ -1,6 +1,11 @@
-// Web Audio synthesis keeps all cues available offline without external assets.
+// Recorded assets are decoded once per page, then scheduled with Web Audio offline.
+// Synthesized cues and device speech remain a fallback if an asset cannot load.
+export const AUDIO_FILES = Object.freeze({
+  referee:'referee.mp3', crowd:'crowd.mp3', minute:'minute.mp3',
+  ...Object.fromEntries([1,2,3,4,5].map(n=>[`count-${n}`,`count-${n}.mp3`]))
+});
 export const SOUND_PLANS = {
-  start: [{at:0, duration:0.9, frequency:2600, type:'sine', volume:0.17}],
+  start: [{at:0, duration:1.25, frequency:2600, type:'sine', volume:0.17}],
   count: [{at:0, duration:0.12, frequency:880, type:'sine', volume:0.14}],
   whistle: [{at:0, duration:0.4}, {at:0.85, duration:0.45}, {at:1.75, duration:1.6}].map(p=>({...p, frequency:2600, type:'sine', volume:0.17}))
 };
@@ -25,6 +30,7 @@ export function changeoverCount(before, after, now) {
 export class MatchSounds {
   constructor() {
     this.context=null; this.active=new Set();this.previewTimers=new Set();
+    this.buffers=new Map();this.groups=new Map();this.failedAssets=[];this.loadPromise=null;
     this.speech=globalThis.speechSynthesis;this.Utterance=globalThis.SpeechSynthesisUtterance;
   }
   async unlock() {
@@ -33,12 +39,42 @@ export class MatchSounds {
       if(this.speech && this.Utterance && !this.speechPrimed) {
         this.speech.speak(new this.Utterance(''));this.speechPrimed=true;
       }
-      this.context ||= new (window.AudioContext||window.webkitAudioContext)(); await this.context.resume(); return this.context.state==='running';} catch {return false;}
+      this.context ||= new (window.AudioContext||window.webkitAudioContext)(); await this.context.resume(); await this.load(); return this.context.state==='running';} catch {return false;}
   }
-  stopSpeech() { try {this.speech?.cancel();} catch {} }
-  stop() { for(const timer of this.previewTimers) clearTimeout(timer);this.previewTimers.clear();this.stopSpeech(); for(const node of this.active) {try {node.stop();} catch {}} this.active.clear(); }
+  async load() {
+    this.loadPromise ||= Promise.all(Object.entries(AUDIO_FILES).map(async([name,file])=>{
+      try {
+        const response=await fetch(new URL(`./audio/${file}`,import.meta.url));
+        if(!response.ok)throw new Error('Audio request failed');
+        const buffer=await this.context.decodeAudioData(await response.arrayBuffer());
+        this.buffers.set(name,buffer);
+      } catch {this.failedAssets.push(name);}
+    }));
+    return this.loadPromise;
+  }
+  stopGroup(group) {
+    for(const [node,label] of this.groups)if(label===group){
+      try{node.stop();}catch{}this.active.delete(node);this.groups.delete(node);
+    }
+  }
+  recorded(name,{at=0,duration,volume=1,group='effect'}={}) {
+    const buffer=this.buffers.get(name),ctx=this.context;
+    if(!buffer || !ctx || ctx.state!=='running')return false;
+    const source=ctx.createBufferSource(),gain=ctx.createGain();
+    source.buffer=buffer;source.connect(gain);gain.connect(ctx.destination);
+    const start=ctx.currentTime+0.02+at,length=Math.min(duration??buffer.duration,buffer.duration);
+    gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(volume,start+0.01);
+    gain.gain.setValueAtTime(volume,Math.max(start+0.01,start+length-0.025));gain.gain.linearRampToValueAtTime(0,start+length);
+    this.active.add(source);this.groups.set(source,group);
+    source.onended=()=>{this.active.delete(source);this.groups.delete(source);source.disconnect();gain.disconnect();};
+    source.start(start,0,length);return true;
+  }
+  stopSpeech() {this.stopGroup('voice'); try {this.speech?.cancel();} catch {} }
+  stop() { for(const timer of this.previewTimers) clearTimeout(timer);this.previewTimers.clear();this.stopSpeech(); for(const node of this.active) {try {node.stop();} catch {}} this.active.clear();this.groups.clear(); }
   sayCount(number) {
     if(!Number.isInteger(number) || number<1 || number>5) return false;
+    this.stopGroup('whistle');this.stopGroup('crowd');
+    if(this.buffers.has(`count-${number}`)){this.stopSpeech();return this.recorded(`count-${number}`,{group:'voice'});}
     return this.speak(String(number),1.25);
   }
   speak(text,rate=1) {
@@ -62,10 +98,20 @@ export class MatchSounds {
       this.previewTimers.add(timer);
     }
   }
-  play(name) {
-    if(name==='minute')return this.speak('One minute remaining');
+  play(name,{crowd=false}={}) {
+    if(name==='minute') {
+      if(this.buffers.has('minute')){this.stopSpeech();return this.recorded('minute',{group:'voice'});}
+      return this.speak('One minute remaining');
+    }
+    if(name==='crowd')return this.recorded('crowd',{volume:0.45,group:'crowd'});
+    if(name==='start'){this.stopGroup('crowd');this.stopGroup('whistle');this.stopSpeech();}
+    if((name==='start'||name==='whistle') && this.buffers.has('referee')) {
+      this.stopGroup('whistle');
+      for(const p of SOUND_PLANS[name])this.recorded('referee',{at:p.at,duration:p.duration,volume:0.8,group:'whistle'});
+      if(name==='whistle' && crowd)this.recorded('crowd',{at:3.35,volume:0.45,group:'crowd'});
+      return true;
+    }
     if (!this.context || this.context.state!=='running') return false;
-    if(name==='start')this.stopSpeech();
     const ctx=this.context, base=ctx.currentTime+0.02;
     for(const p of SOUND_PLANS[name] || []) {
       const osc=ctx.createOscillator(), gain=ctx.createGain(), filter=ctx.createBiquadFilter();

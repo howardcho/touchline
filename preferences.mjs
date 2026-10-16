@@ -1,4 +1,10 @@
 import {GAME_MS, CHANGE_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
+export const AUDIO_CUES = Object.freeze(['start','minute','whistle','countdown']);
+export function soundEnabled(preferences,cue) {
+  if(!preferences.sounds)return false;
+  if(cue==='crowd')return preferences.crowd===true;
+  return AUDIO_CUES.includes(cue) && preferences.audioCues?.[cue]!==false;
+}
 export const PREF_KEY = 'touchline-preferences-v1';
 export const durationOK = value => Number.isInteger(value) && value >= 1000 && value <= 3600000 && value % 1000 === 0;
 export function loadPreferences(storage) {
@@ -11,6 +17,8 @@ export function loadPreferences(storage) {
     gameMs: durationOK(raw.gameMs) ? raw.gameMs : durationOK(legacy) ? legacy : GAME_MS,
     changeMs: durationOK(raw.changeMs) ? raw.changeMs : CHANGE_MS,
     sounds: typeof raw.sounds === 'boolean' ? raw.sounds : true,
+    crowd: typeof raw.crowd === 'boolean' ? raw.crowd : false,
+    audioCues: Object.fromEntries(AUDIO_CUES.map(cue=>[cue,typeof raw.audioCues?.[cue]==='boolean' ? raw.audioCues[cue] : true])),
     colors: validColors(5,raw.colors) ? {...raw.colors} : completeColors(older)
   };
 }

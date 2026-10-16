@@ -30,13 +30,34 @@
 </section>
 </main>
 <footer><span>A LITTLE STRUCTURE. A LOT OF SOCCER.</span><button class="text-button" id="install-button">Full-screen on iPad ↗</button></footer>
-<dialog id="options-dialog"><form method="dialog"><button class="close" aria-label="Close settings">×</button></form><div class="eyebrow">SETTINGS</div><h2>Make it your game.</h2>
+<dialog id="options-dialog" aria-labelledby="settings-title"><div class="settings-heading"><h2 id="settings-title">Settings</h2><form method="dialog"><button class="close" aria-label="Close settings">×</button></form></div>
 <form id="settings-form">
-<fieldset><legend>Team colors</legend><p class="field-help">Choose five different colors in order. Sessions use the first 2, 3, 4, or 5 colors. Colors already assigned to another team cannot be selected.</p><div id="color-fields"></div></fieldset>
-<fieldset><legend>Time per game</legend><div class="duration-fields"><label>Minutes<input id="game-minutes" type="number" inputmode="numeric" min="0" max="60" step="1" required></label><label>Seconds<input id="game-seconds" type="number" inputmode="numeric" min="0" max="59" step="1" required></label></div><p class="field-help" id="duration-settings-help">1 second to 60 minutes. These settings apply when you start a rotation.</p></fieldset>
-<fieldset><legend>Changeover time</legend><div class="duration-fields"><label>Changeover minutes<input id="change-minutes" type="number" inputmode="numeric" min="0" max="60" step="1" required></label><label>Changeover seconds<input id="change-seconds" type="number" inputmode="numeric" min="0" max="59" step="1" required></label></div><p class="field-help">1 second to 60 minutes between games.</p></fieldset>
-<fieldset><legend>Match sounds</legend><label class="wake-label"><input type="checkbox" id="sounds-enabled"> Enable timer sounds</label><p class="field-help">Long whistle at kickoff · Voice announces “one minute remaining” · Three slower whistles at full time, with a long final blast. Spoken countdown from 5 to 1 before the next kickoff. Resume stays quiet. Check your device volume and keep the app visible.</p><div class="sound-previews"><button type="button" class="quiet" data-sound="start">Test kickoff</button><button type="button" class="quiet" data-sound="minute">Test 1 minute</button><button type="button" class="quiet" data-sound="whistle">Test full time</button><button type="button" class="quiet" data-sound="countdown">Test countdown</button></div><p id="sound-status" class="field-help" role="status"></p></fieldset>
-<p id="settings-error" role="alert"></p><button class="primary" type="submit">Save settings</button>
+<div class="settings-tabs" role="tablist" aria-label="Settings sections">
+ <button type="button" id="settings-game-tab" role="tab" aria-selected="true" aria-controls="settings-game-panel" data-settings-tab="game">Game</button>
+ <button type="button" id="settings-audio-tab" role="tab" aria-selected="false" aria-controls="settings-audio-panel" data-settings-tab="audio" tabindex="-1">Audio</button>
+</div>
+<div id="settings-game-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-game-tab">
+ <fieldset><legend>Team colors</legend><p class="field-help">Choose five unique colors. Sessions use the first colors in order.</p><div id="color-fields"></div></fieldset>
+ <div class="settings-timing">
+ <fieldset><legend>Game time</legend><div class="duration-fields"><label>Minutes<input id="game-minutes" aria-label="Game minutes" type="number" inputmode="numeric" min="0" max="60" step="1" required></label><label>Seconds<input id="game-seconds" aria-label="Game seconds" type="number" inputmode="numeric" min="0" max="59" step="1" required></label></div></fieldset>
+ <fieldset><legend>Changeover</legend><div class="duration-fields"><label>Minutes<input id="change-minutes" aria-label="Changeover minutes" type="number" inputmode="numeric" min="0" max="60" step="1" required></label><label>Seconds<input id="change-seconds" aria-label="Changeover seconds" type="number" inputmode="numeric" min="0" max="59" step="1" required></label></div></fieldset>
+ </div>
+ <p class="field-help" id="duration-settings-help">Each timer: 1 second to 60 minutes. Applies to your next rotation.</p>
+</div>
+<div id="settings-audio-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-audio-tab" hidden>
+<fieldset><legend class="sr-only">Match sounds</legend>
+<label class="wake-label"><input type="checkbox" id="sounds-enabled"> Enable timer sounds</label>
+<div class="sound-options">
+ <div class="sound-row"><label class="wake-label"><input type="checkbox" id="start-enabled"> Kickoff whistle</label><button type="button" class="sound-test" data-sound="start" aria-label="Test kickoff whistle">Test</button></div>
+ <div class="sound-row"><label class="wake-label"><input type="checkbox" id="minute-enabled"> 1 minute warning</label><button type="button" class="sound-test" data-sound="minute" aria-label="Test 1 minute warning">Test</button></div>
+ <div class="sound-row"><label class="wake-label"><input type="checkbox" id="whistle-enabled"> Full-time whistle</label><button type="button" class="sound-test" data-sound="whistle" aria-label="Test full-time whistle">Test</button></div>
+ <div class="sound-row"><label class="wake-label"><input type="checkbox" id="countdown-enabled"> 5-to-1 countdown</label><button type="button" class="sound-test" data-sound="countdown" aria-label="Test countdown">Test</button></div>
+ <div class="sound-row"><label class="wake-label"><input type="checkbox" id="crowd-enabled"> Stadium crowd</label><button type="button" class="sound-test" data-sound="crowd" aria-label="Test stadium crowd">Test</button></div>
+</div>
+<p class="field-help sound-help">Choose which sounds play during games. Test previews any sound. Resume stays quiet. <a href="./audio/CREDITS.txt" target="_blank" rel="noopener">Audio credits</a> · Voice and crowd are AI-generated.</p><p id="sound-status" class="field-help" role="status"></p>
+</fieldset>
+</div>
+<div class="settings-save"><p id="settings-error" role="alert"></p><button class="primary" type="submit">Save settings</button></div>
 </form>
 </dialog>
 <dialog id="roster-dialog"><form method="dialog"><button class="close" aria-label="Close team picker">×</button></form><div class="eyebrow">SESSION TEAMS</div><h2 id="roster-title">Add a team</h2><p id="roster-description"></p><form id="roster-form"><label class="color-field">Team color<select id="roster-color" aria-label="Team color to add or remove" required></select></label><p id="roster-error" role="alert"></p><button class="primary" id="roster-confirm" type="submit">Add team</button></form></dialog>

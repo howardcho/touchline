@@ -1,4 +1,4 @@
-import {loadPreferences, savePreferences, durationOK} from './preferences.mjs';
+import {loadPreferences, savePreferences, durationOK, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {MatchSounds, timerCue, changeoverCount} from './sounds.mjs';
 import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, changeTeamRoster, upcomingGame, consecutiveColors, rosterColorChoices} from './engine.mjs';
 const $ = id => document.getElementById(id);
@@ -70,7 +70,13 @@ function render() {
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
 function announce(text) { $('announcement').textContent=text; }
-function playCue(cue) { if(cue && preferences.sounds && document.visibilityState==='visible') sounds.play(cue); }
+function playCue(cue) {
+  if(!cue || document.visibilityState!=='visible')return;
+  // Kickoff clears any remaining celebration even when its whistle is muted.
+  if(cue==='start')sounds.stop();
+  if(soundEnabled(preferences,cue))sounds.play(cue,{crowd:soundEnabled(preferences,'crowd')});
+  else if(cue==='whistle' && soundEnabled(preferences,'crowd'))sounds.play('crowd');
+}
 function tick() {
   if(!state?.running) return;
   const before={...state}, now=Date.now();settle(state,now);
@@ -79,7 +85,7 @@ function tick() {
   if(cue==='minute')announce('One minute remaining.');
   const count=changeoverCount(before,state,now);
   if(count!==null) {
-    if(preferences.sounds && document.visibilityState==='visible')sounds.sayCount(count);
+    if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
     announce(`${count}. Next game starts soon.`);
   }
   if(before.game!==state.game || before.phase!==state.phase || before.segment!==state.segment) {
@@ -100,7 +106,8 @@ $('start').onclick=async()=> {
   tick();
   const beginning=!state.running && state.phase==='game' && !state.phaseStarted;
   toggle(state,Date.now());if(!state.running)sounds.stop();persist();render();
-  if(await ready) {if(beginning && state.running)playCue('start');}
+  const startedState=state,startedGame=state.game;
+  if(await ready) {if(beginning && state===startedState && state.running && state.phase==='game' && state.game===startedGame)playCue('start');}
 };
 let rosterAction='add';
 function openRosterPicker(action) {
@@ -148,9 +155,31 @@ function syncColorOptions() {
   }
 }
 $('color-fields').addEventListener('change',()=>{syncColorOptions();$('settings-error').textContent='';});
+function selectSettingsTab(name,focus=false) {
+  for(const tab of document.querySelectorAll('[data-settings-tab]')) {
+    const selected=tab.dataset.settingsTab===name;
+    tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;
+    $(tab.getAttribute('aria-controls')).hidden=!selected;
+    if(selected && focus)tab.focus();
+  }
+  if(name!=='audio')sounds.stop();
+}
+for(const tab of document.querySelectorAll('[data-settings-tab]')) {
+  tab.onclick=()=>selectSettingsTab(tab.dataset.settingsTab);
+  tab.onkeydown=event=>{
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    event.preventDefault();
+    const name=event.key==='Home'?'game':event.key==='End'?'audio':tab.dataset.settingsTab==='game'?'audio':'game';
+    selectSettingsTab(name,true);
+  };
+}
+// Reveal invalid timer fields before native validation tries to focus them.
+$('settings-form').addEventListener('invalid',event=>{
+  if($('settings-game-panel').contains(event.target))selectSettingsTab('game');
+},true);
 function openSettings() {
   if(state)return;
-  $('duration-settings-help').textContent='1 second to 60 minutes. These settings are used when you choose a team count to start a rotation.';
+  selectSettingsTab('game');
   const source=preferences;
   renderColorFields(preferences.colors);
   syncColorOptions();
@@ -159,6 +188,8 @@ function openSettings() {
   $('change-minutes').value=Math.floor(source.changeMs/60000);
   $('change-seconds').value=(source.changeMs/1000)%60;
   $('sounds-enabled').checked=preferences.sounds;
+  $('crowd-enabled').checked=preferences.crowd;
+  for(const cue of AUDIO_CUES)$(`${cue}-enabled`).checked=preferences.audioCues[cue];
   $('sound-status').textContent='';$('settings-error').textContent='';
   $('options-dialog').showModal();
 }
@@ -176,6 +207,8 @@ $('settings-form').onsubmit=event=>{
     preferences.gameMs=gameMs;preferences.changeMs=changeMs;
     preferences.colors={...colors};
     preferences.sounds=$('sounds-enabled').checked;
+    preferences.crowd=$('crowd-enabled').checked;
+    preferences.audioCues=Object.fromEntries(AUDIO_CUES.map(cue=>[cue,$(`${cue}-enabled`).checked]));
     if(!preferences.sounds)sounds.stop();
     persist(); render(); $('options-dialog').close();
     announce('Settings saved.');
@@ -199,10 +232,14 @@ $('schedule-button').onclick=()=>{
   $('schedule-dialog').showModal();
 };
 for(const button of document.querySelectorAll('[data-sound]')) button.onclick=async()=>{
+  $('sound-status').textContent='Preparing audio…';
   const ready=await sounds.unlock();
+  if(!$('options-dialog').open || $('settings-audio-panel').hidden)return;
   $('sound-status').textContent=ready ? 'Preview playing. Check your device volume.' : 'Audio unavailable. Check browser and device sound settings.';
-  if(ready){sounds.stop();if(button.dataset.sound==='countdown')sounds.previewCountdown();else sounds.play(button.dataset.sound);}
+  if(ready){sounds.stop();if(button.dataset.sound==='countdown')sounds.previewCountdown();else sounds.play(button.dataset.sound,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});
+    if(sounds.failedAssets.length)$('sound-status').textContent='Some recordings could not load. Available fallback cues will play. Reopen online to reload audio.';}
 };
+$('options-dialog').addEventListener('close',()=>sounds.stop());
 $('install-button').onclick=()=> $('install-dialog').showModal();
 async function acquireWake() {
   if(!wantWake || document.visibilityState!=='visible') return;
