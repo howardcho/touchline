@@ -13,7 +13,7 @@
 <section id="setup" class="setup">
  <div class="eyebrow">THE NEXT GAME STARTS HERE</div><h1>Keep the game<br><em>moving.</em></h1><p class="intro">Pick your team count. We’ll mix up the colors and handle the rotation.</p>
  <div class="team-options"><button class="team-option" data-teams="4"><span class="option-number">4</span><span><strong>Four teams</strong><small>Red · Blue · Green · Black</small></span><span class="arrow">↗</span></button><button class="team-option" data-teams="5"><span class="option-number">5</span><span><strong>Five teams</strong><small>Red · Blue · Green · Black · Yellow</small></span><span class="arrow">↗</span></button></div>
- <div class="setup-foot"><span>04:00 <small>GAME TIME</small></span><span>00:30 <small>CHANGEOVER</small></span><span>∞ <small>CONTINUOUS ROTATION</small></span></div>
+ <div class="setup-foot"><span><span id="setup-time">04:00</span> <small>GAME TIME</small></span><span>00:30 <small>CHANGEOVER</small></span><span>∞ <small>CONTINUOUS ROTATION</small></span></div>
  <p class="setup-note">Five teams: no back-to-back games. Four teams: the supplied schedule includes consecutive appearances.</p>
 </section>
 <section id="board" hidden>
@@ -25,11 +25,17 @@
  <div class="under-board"><div class="navigation"><button id="previous" class="quiet">← Previous game</button><button id="next" class="quiet">Next game →</button></div><span class="loop-note" id="loop-note"></span></div>
  <div id="transition" class="transition" role="status"></div>
  <div class="bottom-bar"><label class="wake-label"><input type="checkbox" id="wake"> Keep screen awake <span id="wake-status"></span></label><button class="text-button" id="schedule-button">View rotation & fairness ↗</button></div>
- <p class="save-note" id="save-note">Colors stay fixed for this session. Your session saves on this device. Manual game changes reset and pause the timer.</p>
+ <p class="save-note" id="save-note">Edit colors and game time in Session options. Your session saves on this device. Manual game changes reset and pause the timer.</p>
 </section>
 </main>
 <footer><span>A LITTLE STRUCTURE. A LOT OF SOCCER.</span><button class="text-button" id="install-button">Add to your Home Screen ↗</button></footer>
-<dialog id="options-dialog"><form method="dialog"><button class="close" aria-label="Close options">×</button></form><div class="eyebrow">SESSION OPTIONS</div><h2>A fresh start?</h2><p>Restart and team changes begin at game 1 with a paused timer.</p><button class="dialog-action" id="restart">Restart this rotation</button><button class="dialog-action" id="change-teams">Change team count</button></dialog>
+<dialog id="options-dialog"><form method="dialog"><button class="close" aria-label="Close options">×</button></form><div class="eyebrow">SESSION OPTIONS</div><h2>Make it your game.</h2>
+<form id="settings-form">
+<fieldset><legend>Team colors</legend><p class="field-help">Pick a different color for each team. The rotation stays the same.</p><div id="color-fields"></div></fieldset>
+<fieldset><legend>Time per game</legend><div class="duration-fields"><label>Minutes<input id="game-minutes" type="number" inputmode="numeric" min="0" max="60" step="1" required></label><label>Seconds<input id="game-seconds" type="number" inputmode="numeric" min="0" max="59" step="1" required></label></div><p class="field-help">1 second to 60 minutes. Changeovers stay at 30 seconds. Changing game time resets the current game timer and pauses it. Color-only changes keep the timer running.</p></fieldset>
+<p id="settings-error" role="alert"></p><button class="primary" type="submit">Save settings</button>
+</form>
+<p>Restart and team count changes begin at game 1 with a paused timer. Restart keeps your colors and game time.</p><button class="dialog-action" id="restart">Restart this rotation</button><button class="dialog-action" id="change-teams">Change team count</button></dialog>
 <dialog id="schedule-dialog"><form method="dialog"><button class="close" aria-label="Close rotation">×</button></form><div class="eyebrow">THE FULL ROTATION</div><h2 id="schedule-title"></h2><p id="audit-summary"></p><div id="schedule-list"></div><p class="dialog-note" id="audit-details"></p></dialog>
 <dialog id="install-dialog"><form method="dialog"><button class="close" aria-label="Close installation help">×</button></form><div class="eyebrow">READY FOR THE SIDELINE</div><h2>Make it your match board.</h2><p>On iPad, open this page in Safari. Tap Share, then <strong>Add to Home Screen</strong>, and tap Add. If offered, enable Open as Web App.</p><p>Load the app once online before using it offline. Offline use requires HTTPS or localhost. The timer continues from elapsed time when you return to the app.</p><p>Enable Keep screen awake during play when your browser supports it. Keep the app visible; background sounds and wake lock are not guaranteed by iPadOS.</p></dialog>
 <div id="announcement" class="sr-only" aria-live="polite"></div>
