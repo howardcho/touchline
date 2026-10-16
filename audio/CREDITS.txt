@@ -16,3 +16,7 @@ Announcer: AI-generated for Touchline using Runway, October 16, 2026.
 Preset voice: Mark. Lines: "One minute remaining!", "Five!", "Four!",
 "Three!", "Two!", "One!". Trimmed and normalized for offline playback.
 No voice cloning or real announcer impersonation.
+
+Team callouts: AI-generated using Runway, Miriam preset (calm British woman).
+Reusable team names and connecting phrases are assembled for the actual roster.
+Trimmed and normalized for offline playback.

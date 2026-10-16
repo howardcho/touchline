@@ -4,7 +4,7 @@ import {AUDIO_CUES,loadPreferences,savePreferences,PREF_KEY,soundEnabled} from '
 function memory(initial={}){const data=new Map([[PREF_KEY,JSON.stringify(initial)]]);return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};}
 test('existing settings retain master mute and crowd choice while new cue toggles default on',()=>{
  const prefs=loadPreferences(memory({sounds:false,crowd:true}));
- assert.deepEqual(prefs.audioCues,{start:true,minute:true,whistle:true,countdown:true});
+ assert.deepEqual(prefs.audioCues,{start:true,minute:true,whistle:true,countdown:true,lineup:true});
  for(const cue of [...AUDIO_CUES,'crowd'])assert.equal(soundEnabled(prefs,cue),false);
  prefs.sounds=true;assert.equal(soundEnabled(prefs,'crowd'),true);
 });
@@ -20,6 +20,12 @@ test('each cue can be independently muted and the choices survive reopening',()=
 });
 test('invalid cue preferences recover safely and unknown sounds are disabled',()=>{
  const prefs=loadPreferences(memory({audioCues:{start:false,minute:'false',whistle:null,countdown:0}}));
- assert.deepEqual(prefs.audioCues,{start:false,minute:true,whistle:true,countdown:true});
+ assert.deepEqual(prefs.audioCues,{start:false,minute:true,whistle:true,countdown:true,lineup:true});
  assert.equal(soundEnabled(prefs,'unknown'),false);assert.equal(soundEnabled(prefs,'crowd'),false);
+});
+
+test('end time settings and lineup mute survive reopening and malformed modes recover',()=>{
+ const storage=memory(),prefs=loadPreferences(storage);prefs.endEnabled=true;prefs.endTime='21:30';prefs.endMode='full';prefs.minGameMs=90000;prefs.audioCues.lineup=false;
+ savePreferences(storage,prefs);assert.deepEqual(loadPreferences(storage),prefs);
+ const invalid=loadPreferences(memory({endTime:'25:00',endMode:'bad',minGameMs:0}));assert.equal(invalid.endTime,'20:00');assert.equal(invalid.endMode,'hard');assert.equal(invalid.minGameMs,120000);
 });

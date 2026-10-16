@@ -1,3 +1,4 @@
+import {settleSession,prepareSessionGame} from './session.mjs';
 export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
   2: ['AB'],
@@ -38,7 +39,8 @@ export function audit(teams) {
   return {counts,pairs,conflicts,maxRest};
 }
 export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS, changeMs = CHANGE_MS) { return {teams, colors, gameMs, changeMs, game:1, phase:'game', phaseStarted:false, phaseMs:gameMs, remaining:gameMs, running:false, deadline:null}; }
-export function settle(state, now) {
+export function settle(state, now) { return settleSession(state,now,settleRotation); }
+function settleRotation(state, now) {
   if (!state.running) return state;
   // A roster change begins at the next kickoff, after the old game's changeover.
   if(state.pendingTeams && state.deadline<=now) {
@@ -74,12 +76,14 @@ export function settle(state, now) {
 }
 export function toggle(state, now) {
   settle(state, now);
+  if(state.finished || (!state.running && !prepareSessionGame(state,now)))return state;
   state.running = !state.running;
   if(state.running && state.phase==='game') state.phaseStarted=true;
   state.deadline = state.running ? now + state.remaining : null;
   return state;
 }
 export function move(state, delta) {
+  if(state.finished)return state;
   if(delta>0 && state.pendingTeams) {
     const pending=state.pendingTeams;
     beginTeamCycle(state,pending.teams,pending.colors,false,null,true);
@@ -107,11 +111,14 @@ export function applySettings(state, colors, gameMs, now, changeMs = state.chang
 // Reset the current matchup, including from its changeover, without advancing it.
 export function restartGame(state) { return move(state, 0); }
 export function adjustTime(state, delta, now) {
+  if(state.finished)return state;
   if(delta !== 30000 && delta !== -30000) throw new Error('Time adjustments must be 30 seconds.');
   settle(state, now);
+  if(state.finished)return state;
   state.remaining = Math.max(1000, Math.min(3600000, state.remaining + delta));
   const duration = state.phase==='game' ? state.gameMs : state.changeMs;
   state.phaseMs = Math.max(state.phaseMs ?? duration, state.remaining);
+  if(state.endMode==='hard' && Number.isFinite(state.endAt))state.remaining=Math.min(state.remaining,Math.max(0,state.endAt-now));
   if(state.running) state.deadline = now + state.remaining;
   return state;
 }
@@ -131,6 +138,7 @@ export function beginTeamCycle(state, teams, colors, running=false, kickoff=null
 export function changeTeamRoster(state, action, color, now) {
   if(!['add','remove'].includes(action) || !PALETTE.includes(color))throw new Error('Choose a team color.');
   settle(state,now);
+  if(state.finished)throw new Error('This session has ended. Return to selection to start another.');
   const current=Object.values(state.pendingTeams?.colors || state.colors);
   let next;
   if(action==='add') {
@@ -152,6 +160,7 @@ export function changeTeamRoster(state, action, color, now) {
 export function changeTeamCount(state, delta, allColors, now) {
   if(delta!==1 && delta!==-1)throw new Error('Add or remove one team at a time.');
   settle(state,now);
+  if(state.finished)throw new Error('This session has ended. Return to selection to start another.');
   const current=Object.values(state.pendingTeams?.colors || state.colors);
   const color=delta===1 ? Object.values(allColors).find(c=>!current.includes(c)) : current.at(-1);
   return changeTeamRoster(state,delta===1?'add':'remove',color,now);

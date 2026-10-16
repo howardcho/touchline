@@ -14,10 +14,12 @@
  <div class="eyebrow">THE NEXT GAME STARTS HERE</div><h1>Keep the game<br><em>moving.</em></h1><p class="intro">Pick your team count. Your saved colors stay in order.</p>
  <div class="team-options"><button class="team-option" data-teams="2"><span class="option-number">2</span><span><strong>Two teams</strong><small>Red · Blue</small></span><span class="arrow">↗</span></button><button class="team-option" data-teams="3"><span class="option-number">3</span><span><strong>Three teams</strong><small>Red · Blue · Green</small></span><span class="arrow">↗</span></button><button class="team-option" data-teams="4"><span class="option-number">4</span><span><strong>Four teams</strong><small>Red · Blue · Green · Black</small></span><span class="arrow">↗</span></button><button class="team-option" data-teams="5"><span class="option-number">5</span><span><strong>Five teams</strong><small>Red · Blue · Green · Black · Yellow</small></span><span class="arrow">↗</span></button></div>
  <div class="setup-foot"><span><span id="setup-time">04:00</span> <small>GAME TIME</small></span><span><span id="setup-changeover">00:30</span> <small>CHANGEOVER</small></span><span>∞ <small>CONTINUOUS ROTATION</small></span><button class="quiet" id="setup-settings">Settings ⚙</button></div>
+ <p id="setup-end-note" class="session-note"></p><p id="setup-error" role="alert"></p>
  <p class="setup-note">Five teams: no back-to-back games. Two, three, and four teams include consecutive appearances. Choosing a team count starts a new rotation.</p>
 </section>
 <section id="board" hidden>
  <div class="board-top"><div><span class="eyebrow" id="team-summary"></span><h1>Let’s play.</h1></div><div class="board-actions"><button class="quiet" id="back-to-selection">← Back to selection</button><button class="quiet" id="restart">↻ Restart rotation</button></div></div>
+ <p id="session-end-note" class="session-note" role="status"></p>
  <div class="roster-bar"><div class="roster-controls" role="group" aria-label="Change number of teams"><button class="quiet" id="remove-team">− Team</button><strong id="roster-count"></strong><button class="quiet" id="add-team">+ Team</button></div><p id="roster-help"></p></div><div class="team-change-notice"><span id="team-change-status" role="status"></span><button class="text-button" id="cancel-team-change" hidden>Cancel change</button></div>
  <div class="game-layout">
  <article class="now-card"><div class="card-top"><span class="eyebrow"><i class="live-dot"></i> NOW PLAYING</span><span id="game-number" class="game-pill"></span></div><div class="matchup" id="now-match"></div><div class="timer-section"><div class="timer-top"><span id="phase-label">GAME TIMER</span><span id="timer-status">READY WHEN YOU ARE</span></div><div id="timer" role="timer" aria-label="Game countdown">04:00</div><div class="progress"><div id="progress-fill"></div></div></div><button id="start" class="primary">▶ <span>Start game</span></button><div class="timer-controls" role="group" aria-label="Adjust current timer"><button id="subtract-time" class="timer-control" aria-label="Remove 30 seconds">−30 sec</button><button id="restart-game" class="timer-control">↻ Restart game</button><button id="add-time" class="timer-control" aria-label="Add 30 seconds">+30 sec</button></div><p class="timer-help" id="timer-help">Timer optional · Or just tap Next game</p></article>
@@ -34,6 +36,7 @@
 <form id="settings-form">
 <div class="settings-tabs" role="tablist" aria-label="Settings sections">
  <button type="button" id="settings-game-tab" role="tab" aria-selected="true" aria-controls="settings-game-panel" data-settings-tab="game">Game</button>
+ <button type="button" id="settings-session-tab" role="tab" aria-selected="false" aria-controls="settings-session-panel" data-settings-tab="session" tabindex="-1">Session</button>
  <button type="button" id="settings-audio-tab" role="tab" aria-selected="false" aria-controls="settings-audio-panel" data-settings-tab="audio" tabindex="-1">Audio</button>
 </div>
 <div id="settings-game-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-game-tab">
@@ -44,6 +47,13 @@
  </div>
  <p class="field-help" id="duration-settings-help">Each timer: 1 second to 60 minutes. Applies to your next rotation.</p>
 </div>
+<div id="settings-session-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-session-tab" hidden>
+<label class="wake-label"><input type="checkbox" id="end-enabled"> Set a session end time</label><p class="field-help" id="end-time-now"></p>
+<div class="session-fields"><label class="color-field">End time today<input id="end-time" type="time" required></label><label class="color-field">How to finish<select id="end-mode"><option value="hard">Hard stop</option><option value="soft">Finish last game</option><option value="full">Full games only</option></select></label></div>
+<p class="field-help">Hard stop ends at the set time, allowing a shortened final game. Finish last game allows the game already underway to finish. Full games only skips a final game that won’t fit.</p>
+<fieldset><legend>Minimum shortened game</legend><div class="duration-fields"><label>Minutes<input id="min-game-minutes" aria-label="Minimum game minutes" type="number" inputmode="numeric" min="0" max="60" step="1" required></label><label>Seconds<input id="min-game-seconds" aria-label="Minimum game seconds" type="number" inputmode="numeric" min="0" max="59" step="1" required></label></div></fieldset>
+<p class="field-help">For hard stops only. A shorter slot is skipped before kickoff. Pausing never moves the end time. End times apply today; disable for continuous play.</p>
+</div>
 <div id="settings-audio-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-audio-tab" hidden>
 <fieldset><legend class="sr-only">Match sounds</legend>
 <label class="wake-label"><input type="checkbox" id="sounds-enabled"> Enable timer sounds</label>
@@ -52,6 +62,7 @@
  <div class="sound-row"><label class="wake-label"><input type="checkbox" id="minute-enabled"> 1 minute warning</label><button type="button" class="sound-test" data-sound="minute" aria-label="Test 1 minute warning">Test</button></div>
  <div class="sound-row"><label class="wake-label"><input type="checkbox" id="whistle-enabled"> Full-time whistle</label><button type="button" class="sound-test" data-sound="whistle" aria-label="Test full-time whistle">Test</button></div>
  <div class="sound-row"><label class="wake-label"><input type="checkbox" id="countdown-enabled"> 5-to-1 countdown</label><button type="button" class="sound-test" data-sound="countdown" aria-label="Test countdown">Test</button></div>
+ <div class="sound-row"><label class="wake-label"><input type="checkbox" id="lineup-enabled"> Team callouts</label><button type="button" class="sound-test" data-sound="lineup" aria-label="Test team callouts">Test</button></div>
  <div class="sound-row"><label class="wake-label"><input type="checkbox" id="crowd-enabled"> Stadium crowd</label><button type="button" class="sound-test" data-sound="crowd" aria-label="Test stadium crowd">Test</button></div>
 </div>
 <p class="field-help sound-help">Choose which sounds play during games. Test previews any sound. Resume stays quiet. <a href="./audio/CREDITS.txt" target="_blank" rel="noopener">Audio credits</a> · Voice and crowd are AI-generated.</p><p id="sound-status" class="field-help" role="status"></p>

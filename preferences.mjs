@@ -1,5 +1,6 @@
+import {END_MODES,validEndTime} from './session.mjs';
 import {GAME_MS, CHANGE_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
-export const AUDIO_CUES = Object.freeze(['start','minute','whistle','countdown']);
+export const AUDIO_CUES = Object.freeze(['start','minute','whistle','countdown','lineup']);
 export function soundEnabled(preferences,cue) {
   if(!preferences.sounds)return false;
   if(cue==='crowd')return preferences.crowd===true;
@@ -19,6 +20,10 @@ export function loadPreferences(storage) {
     sounds: typeof raw.sounds === 'boolean' ? raw.sounds : true,
     crowd: typeof raw.crowd === 'boolean' ? raw.crowd : false,
     audioCues: Object.fromEntries(AUDIO_CUES.map(cue=>[cue,typeof raw.audioCues?.[cue]==='boolean' ? raw.audioCues[cue] : true])),
+    endEnabled: raw.endEnabled===true,
+    endTime: validEndTime(raw.endTime)?raw.endTime:'20:00',
+    endMode: END_MODES.includes(raw.endMode)?raw.endMode:'hard',
+    minGameMs: durationOK(raw.minGameMs)?raw.minGameMs:120000,
     colors: validColors(5,raw.colors) ? {...raw.colors} : completeColors(older)
   };
 }

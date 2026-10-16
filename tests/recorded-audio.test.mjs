@@ -42,6 +42,15 @@ test('decode failures preserve other recordings and are reported without rejecti
  try {
   globalThis.fetch=async url=>({ok:!url.pathname.endsWith('/crowd.mp3'),arrayBuffer:async()=>new ArrayBuffer(16)});
   const sounds=new MatchSounds();let decodes=0;sounds.context={decodeAudioData:async()=>{decodes++;return {duration:1};}};
-  await sounds.load();await sounds.load();assert.deepEqual(sounds.failedAssets,['crowd']);assert.equal(sounds.buffers.size,7);assert.equal(decodes,7);
+  await sounds.load();await sounds.load();assert.deepEqual(sounds.failedAssets,['crowd']);assert.equal(sounds.buffers.size,Object.keys(AUDIO_FILES).length-1);assert.equal(decodes,Object.keys(AUDIO_FILES).length-1);
  } finally {globalThis.fetch=savedFetch;}
+});
+
+test('lineup recordings play the requested pairs in order and kickoff cancels every queued word',()=>{
+ const {sounds,sources}=fixture();assert.equal(sounds.sayTeams(['Red','Blue'],['Purple','Black'],{delay:3.55}),true);
+ assert.deepEqual(sources.map(s=>s.buffer.name),['team-Red','and','team-Blue','up','team-Purple','and','team-Black','deck']);
+ assert.ok(sources[0].startArgs[0]>=13.55);
+ for(let i=1;i<sources.length;i++)assert.ok(sources[i].startArgs[0]>sources[i-1].startArgs[0]);
+ sounds.play('start');assert.ok(sources.slice(0,8).every(s=>s.stopped));
+ assert.equal(sounds.sayTeams(['Invalid','Blue'],['Purple','Black']),false);
 });

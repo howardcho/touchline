@@ -50,3 +50,7 @@
 
 #settings-form #settings-audio-panel fieldset{margin-bottom:0}
 @media(max-height:700px){#options-dialog{padding:16px}.settings-heading{margin-bottom:8px}.settings-tabs{margin-bottom:12px}}
+
+.session-note{font-size:12px;line-height:1.5;color:#60705c;margin:10px 0 16px}.session-note:empty,#setup-error:empty{display:none}#setup-error{color:#a13a2e;font-size:13px}.session-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 12px}.session-fields input{font:inherit;color:var(--green);background:#fffef7;min-height:44px;border:1px solid #b7c3ad;border-radius:9px;padding:8px;width:100%;min-width:0}#settings-session-panel .duration-fields{max-width:290px}#settings-session-panel input:disabled,#settings-session-panel select:disabled{opacity:.45}#board:has(#start:disabled) .queue-card p{visibility:hidden}
+
+@media(max-height:700px){#settings-session-panel .field-help{margin:6px 0 8px}#settings-session-panel .session-fields{margin-bottom:8px}#settings-form #settings-session-panel fieldset{margin-bottom:10px}}

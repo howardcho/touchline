@@ -1,5 +1,6 @@
+import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, AUDIO_CUES, soundEnabled} from './preferences.mjs';
-import {MatchSounds, timerCue, changeoverCount} from './sounds.mjs';
+import {MatchSounds, timerCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, changeTeamRoster, upcomingGame, consecutiveColors, rosterColorChoices} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false;
@@ -21,9 +22,11 @@ function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
     if(s) s.gameMs = Number.isInteger(s.gameMs) && s.gameMs>=1000 && s.gameMs<=3600000 && s.gameMs%1000===0 ? s.gameMs : GAME_MS;
-    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,durationOK(s.phaseMs)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
+    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && (s.remaining>0 || (s.finished===true && s.remaining===0)) && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,(Number.isFinite(s.phaseMs)&&s.phaseMs>0&&s.phaseMs<=3600000)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
       s.teamHistory=Array.isArray(s.teamHistory)?s.teamHistory.filter(h=>TEAM_COUNTS.includes(h.teams)&&Number.isSafeInteger(h.lastGame)&&h.lastGame>0&&validColors(h.teams,h.colors)):[];
       s.segment=Number.isSafeInteger(s.segment)&&s.segment>0?s.segment:1;
+      if(!Number.isFinite(s.endAt) || !END_MODES.includes(s.endMode)){delete s.endAt;delete s.endMode;}
+      s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
       state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; if(!s.sessionRoster)preferences.colors=completeColors({...preferences.colors,...s.colors}); }
   } catch {}
 }
@@ -40,6 +43,7 @@ function render() {
     const count=Number(button.dataset.teams), colors=colorsForTeams(count,preferences.colors);
     button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
   }
+  $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
   const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover';
   $('team-summary').textContent = `${teams} TEAMS · ${SCHEDULES[teams].length}-GAME ROTATION`;
@@ -70,6 +74,16 @@ function render() {
   $('add-time').disabled=remaining>=3600000;
   $('loop-note').textContent=`Loop ${Math.floor((game-1)/SCHEDULES[teams].length)+1} · Game ${(game-1)%SCHEDULES[teams].length+1} of ${SCHEDULES[teams].length}`;
   const shared=consecutiveColors(state);
+  $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';
+  if(state.finished){
+    $('timer-status').textContent='SESSION COMPLETE';$('phase-label').textContent='FINAL WHISTLE';$('start').innerHTML='Session finished';
+    $('timer-help').textContent='Return to selection to start another session.';
+    for(const id of ['start','next','previous','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
+    $('transition').textContent='';
+    for(const id of ['next','deck']){$(id+'-match').textContent='Session complete';$(id+'-match').setAttribute('aria-label','Session complete');$(id+'-number').textContent='';}
+    return;
+  }
+  $('start').disabled=false;$('next').disabled=false;$('restart-game').disabled=false;
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
 function announce(text) { $('announcement').textContent=text; }
@@ -77,20 +91,24 @@ function playCue(cue) {
   if(!cue || document.visibilityState!=='visible')return;
   // Kickoff clears any remaining celebration even when its whistle is muted.
   if(cue==='start')sounds.stop();
-  if(soundEnabled(preferences,cue))sounds.play(cue,{crowd:soundEnabled(preferences,'crowd')});
+  if(soundEnabled(preferences,cue))sounds.play(cue,{crowd:soundEnabled(preferences,'crowd'),crowdVolume:soundEnabled(preferences,'lineup')?0.15:0.45});
   else if(cue==='whistle' && soundEnabled(preferences,'crowd'))sounds.play('crowd');
+  if(cue==='whistle' && !state.finished && soundEnabled(preferences,'lineup')){
+    const lineup=lineupFor(state);sounds.sayTeams(lineup.up,lineup.deck,{delay:soundEnabled(preferences,'whistle')?3.55:0});announce(lineup.text);
+  }
 }
 function tick() {
-  if(!state?.running) return;
+  if(!state || state.finished || (!state.running && !Number.isFinite(state.endAt))) return;
   const before={...state}, now=Date.now();settle(state,now);
   const cue=timerCue(before,state,now);
-  playCue(cue);
+  if(!state.finished)playCue(cue);
   if(cue==='minute')announce('One minute remaining.');
   const count=changeoverCount(before,state,now);
   if(count!==null) {
     if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
     announce(`${count}. Next game starts soon.`);
   }
+  if(!before.finished && state.finished){sounds.stop();playCue(cue);announce('Session complete.');persist();render();return;}
   if(before.game!==state.game || before.phase!==state.phase || before.segment!==state.segment) {
     announce(state.phase==='changeover'?`Game ${state.game} finished. Changeover: ${formatTime(state.changeMs)}.`:`Game ${state.game}. ${[...matchup(state.teams,state.game)].map(colorName).join(' versus ')}.`);persist();
   }
@@ -99,7 +117,9 @@ function tick() {
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
   preferences.setupTeams=teams;
-  state=fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs);
+  let ending;try{ending=resolveSessionEnd(preferences);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
+  $('setup-error').textContent='';
+  state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending};
   persist();render();$('start').focus();
 });
 $('start').onclick=async()=> {
@@ -145,7 +165,15 @@ for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onc
   sounds.stop();adjustTime(state,delta,Date.now());persist();render();
   announce(`${state.phase==='game'?'Game':'Changeover'} timer: ${formatTime(state.remaining)}. ${state.running?'Running':'Paused'}.`);
 };
-for(const [id,delta] of [['previous',-1],['next',1]]) $(id).onclick=()=>{sounds.stop();move(state,delta);persist();render();announce(`Game ${state.game}. Timer paused.`);};
+for(const [id,delta] of [['previous',-1],['next',1]]) $(id).onclick=async()=>{
+  sounds.stop();const ready=delta>0&&soundEnabled(preferences,'lineup')?sounds.unlock():Promise.resolve(false);
+  const audioGeneration=sounds.generation;
+  move(state,delta);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,Date.now());persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
+  const movedState=state,movedGame=state.game;
+  if(await ready && sounds.generation===audioGeneration && state===movedState && state.game===movedGame && !state.finished && document.visibilityState==='visible'){
+    const lineup=lineupFor(state,0);sounds.sayTeams(lineup.up,lineup.deck);announce(lineup.text);
+  }
+};
 function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`; }
 function renderColorFields(colors) {
   $('color-fields').innerHTML = 'ABCDE'.split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
@@ -172,13 +200,15 @@ for(const tab of document.querySelectorAll('[data-settings-tab]')) {
   tab.onkeydown=event=>{
     if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     event.preventDefault();
-    const name=event.key==='Home'?'game':event.key==='End'?'audio':tab.dataset.settingsTab==='game'?'audio':'game';
+    const names=['game','session','audio'],index=names.indexOf(tab.dataset.settingsTab);
+    const name=event.key==='Home'?names[0]:event.key==='End'?names.at(-1):names[(index+(event.key==='ArrowRight'?1:2))%names.length];
     selectSettingsTab(name,true);
   };
 }
 // Reveal invalid timer fields before native validation tries to focus them.
 $('settings-form').addEventListener('invalid',event=>{
-  if($('settings-game-panel').contains(event.target))selectSettingsTab('game');
+  const panel=event.target.closest('[role=tabpanel]');
+  if(panel)selectSettingsTab(panel.id==='settings-session-panel'?'session':'game');
 },true);
 function openSettings() {
   if(state)return;
@@ -192,10 +222,20 @@ function openSettings() {
   $('change-seconds').value=(source.changeMs/1000)%60;
   $('sounds-enabled').checked=preferences.sounds;
   $('crowd-enabled').checked=preferences.crowd;
+  $('end-enabled').checked=preferences.endEnabled;$('end-time').value=preferences.endTime;$('end-mode').value=preferences.endMode;
+  $('min-game-minutes').value=Math.floor(preferences.minGameMs/60000);$('min-game-seconds').value=preferences.minGameMs/1000%60;
+  syncEndFields();
+  $('end-time-now').textContent=`Local time now: ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
   for(const cue of AUDIO_CUES)$(`${cue}-enabled`).checked=preferences.audioCues[cue];
   $('sound-status').textContent='';$('settings-error').textContent='';
   $('options-dialog').showModal();
 }
+function syncEndFields(){
+  const enabled=$('end-enabled').checked,hard=$('end-mode').value==='hard';
+  $('end-time').disabled=!enabled;$('end-mode').disabled=!enabled;
+  $('min-game-minutes').disabled=!enabled||!hard;$('min-game-seconds').disabled=!enabled||!hard;
+}
+$('end-enabled').onchange=syncEndFields;$('end-mode').onchange=syncEndFields;
 $('setup-settings').onclick=openSettings;
 $('settings-form').onsubmit=event=>{
   event.preventDefault();
@@ -207,7 +247,12 @@ $('settings-form').onsubmit=event=>{
     if(!validColors(5,colors))throw new Error('Choose five different team colors.');
     const target=fresh(5);
     applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
+    const minGameMs=(Number($('min-game-minutes').value)*60+Number($('min-game-seconds').value))*1000;
+    if($('end-enabled').checked && $('end-mode').value==='hard' && (!durationOK(minGameMs)||minGameMs>gameMs)){selectSettingsTab('session');throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');}
+    preferences.endEnabled=$('end-enabled').checked;preferences.endTime=$('end-time').value;preferences.endMode=$('end-mode').value;
+    preferences.minGameMs=durationOK(minGameMs)?minGameMs:120000;
     preferences.gameMs=gameMs;preferences.changeMs=changeMs;
+    $('setup-error').textContent='';
     preferences.colors={...colors};
     preferences.sounds=$('sounds-enabled').checked;
     preferences.crowd=$('crowd-enabled').checked;
@@ -217,7 +262,7 @@ $('settings-form').onsubmit=event=>{
     announce('Settings saved.');
   } catch(error) { $('settings-error').textContent=error.message; }
 };
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
@@ -240,7 +285,7 @@ for(const button of document.querySelectorAll('[data-sound]')) button.onclick=as
   const ready=await sounds.unlock();
   if(!$('options-dialog').open || $('settings-audio-panel').hidden)return;
   $('sound-status').textContent=ready ? 'Preview playing. Check your device volume.' : 'Audio unavailable. Check browser and device sound settings.';
-  if(ready){sounds.stop();if(button.dataset.sound==='countdown')sounds.previewCountdown();else sounds.play(button.dataset.sound,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});
+  if(ready){sounds.stop();if(button.dataset.sound==='countdown')sounds.previewCountdown();else if(button.dataset.sound==='lineup')sounds.sayTeams(['Red','Blue'],['Purple','Black']);else sounds.play(button.dataset.sound,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});
     if(sounds.failedAssets.length)$('sound-status').textContent='Some recordings could not load. Available fallback cues will play. Reopen online to reload audio.';}
 };
 $('options-dialog').addEventListener('close',()=>sounds.stop());
