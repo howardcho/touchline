@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#122d26"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="A clear, hands-free soccer rotation board for four or five teams.">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css"><title>Touchline · Soccer rotation</title>
+</head>
+<body>
+<header><a class="brand" href="./" aria-label="Touchline home"><span class="brand-mark">↗</span> TOUCHLINE<span class="brand-sub">SOCCER ROTATION</span></a><span class="header-note">LESS ORGANIZING. MORE PLAYING.</span></header>
+<main>
+<section id="setup" class="setup">
+ <div class="eyebrow">THE NEXT GAME STARTS HERE</div><h1>Keep the game<br><em>moving.</em></h1><p class="intro">Pick your team count. We’ll mix up the colors and handle the rotation.</p>
+ <div class="team-options"><button class="team-option" data-teams="4"><span class="option-number">4</span><span><strong>Four teams</strong><small>Red · Blue · Green · Black</small></span><span class="arrow">↗</span></button><button class="team-option" data-teams="5"><span class="option-number">5</span><span><strong>Five teams</strong><small>Red · Blue · Green · Black · Yellow</small></span><span class="arrow">↗</span></button></div>
+ <div class="setup-foot"><span>04:00 <small>GAME TIME</small></span><span>00:30 <small>CHANGEOVER</small></span><span>∞ <small>CONTINUOUS ROTATION</small></span></div>
+ <p class="setup-note">Five teams: no back-to-back games. Four teams: the supplied schedule includes consecutive appearances.</p>
+</section>
+<section id="board" hidden>
+ <div class="board-top"><div><span class="eyebrow" id="team-summary"></span><h1>Let’s play.</h1></div><button class="quiet" id="settings">Session options <span>⚙</span></button></div>
+ <div class="game-layout">
+ <article class="now-card"><div class="card-top"><span class="eyebrow"><i class="live-dot"></i> NOW PLAYING</span><span id="game-number" class="game-pill"></span></div><div class="matchup" id="now-match"></div><div class="timer-section"><div class="timer-top"><span id="phase-label">GAME TIMER</span><span id="timer-status">READY WHEN YOU ARE</span></div><div id="timer" role="timer" aria-label="Game countdown">04:00</div><div class="progress"><div id="progress-fill"></div></div></div><button id="start" class="primary">▶ <span>Start game</span></button><p class="timer-help" id="timer-help">Timer optional · Or just tap Next game</p></article>
+ <div class="queue"><article class="queue-card next"><div class="card-top"><span class="eyebrow">UP NEXT</span><span id="next-number"></span></div><div class="matchup" id="next-match"></div><p>Get ready to play <span>↗</span></p></article><article class="queue-card deck"><div class="card-top"><span class="eyebrow">ON DECK</span><span id="deck-number"></span></div><div class="matchup" id="deck-match"></div><p>You’ve got a little time <span>↗</span></p></article></div>
+ </div>
+ <div class="under-board"><div class="navigation"><button id="previous" class="quiet">← Previous game</button><button id="next" class="quiet">Next game →</button></div><span class="loop-note" id="loop-note"></span></div>
+ <div id="transition" class="transition" role="status"></div>
+ <div class="bottom-bar"><label class="wake-label"><input type="checkbox" id="wake"> Keep screen awake <span id="wake-status"></span></label><button class="text-button" id="schedule-button">View rotation & fairness ↗</button></div>
+ <p class="save-note" id="save-note">Colors stay fixed for this session. Your session saves on this device. Manual game changes reset and pause the timer.</p>
+</section>
+</main>
+<footer><span>A LITTLE STRUCTURE. A LOT OF SOCCER.</span><button class="text-button" id="install-button">Add to your Home Screen ↗</button></footer>
+<dialog id="options-dialog"><form method="dialog"><button class="close" aria-label="Close options">×</button></form><div class="eyebrow">SESSION OPTIONS</div><h2>A fresh start?</h2><p>Restart and team changes begin at game 1 with a paused timer.</p><button class="dialog-action" id="restart">Restart this rotation</button><button class="dialog-action" id="change-teams">Change team count</button></dialog>
+<dialog id="schedule-dialog"><form method="dialog"><button class="close" aria-label="Close rotation">×</button></form><div class="eyebrow">THE FULL ROTATION</div><h2 id="schedule-title"></h2><p id="audit-summary"></p><div id="schedule-list"></div><p class="dialog-note" id="audit-details"></p></dialog>
+<dialog id="install-dialog"><form method="dialog"><button class="close" aria-label="Close installation help">×</button></form><div class="eyebrow">READY FOR THE SIDELINE</div><h2>Make it your match board.</h2><p>On iPad, open this page in Safari. Tap Share, then <strong>Add to Home Screen</strong>, and tap Add. If offered, enable Open as Web App.</p><p>Load the app once online before using it offline. Offline use requires HTTPS or localhost. The timer continues from elapsed time when you return to the app.</p><p>Enable Keep screen awake during play when your browser supports it. Keep the app visible; background sounds and wake lock are not guaranteed by iPadOS.</p></dialog>
+<div id="announcement" class="sr-only" aria-live="polite"></div>
+<script type="module" src="app.mjs"></script>
+</body></html>

@@ -1,0 +1,80 @@
+# Touchline — Soccer Rotation
+
+A dependency-free, iPad-friendly web app for the sideline. All team schedules and session data live on the device. No analytics, external fonts, or backend database.
+
+## Use on an iPad
+
+1. After deploying the source to an HTTPS host, open its URL in Safari. A private hosted copy may ask you to sign in. A ready-made hosted URL has not yet been published.
+2. Tap **Share → Add to Home Screen → Add**. Enable **Open as Web App** if offered. See [Apple’s iPad instructions](https://support.apple.com/guide/ipad/ipad8f1f7a29/ipados).
+3. Open Touchline from the Home Screen while online once so its offline assets can finish caching. Choose **Four teams** or **Five teams**. The app randomly assigns Red, Blue, Green, and Black to the four team slots, with Yellow added for five teams. Colors remain fixed across games, loops, refreshes, and restarts; selecting a team count again creates a new random assignment. A new shuffle can occasionally match the previous one.
+4. The timer is optional: use **Next game** to run the rotation manually. To use the timer, tap **Start game**. Games run for four minutes, followed automatically by a 30-second changeover. At the end of the changeover, the next game starts automatically. During changeover, NOW PLAYING remains on the game just finished; UP NEXT is the game about to start. A short tone plays at boundaries when the browser allows it.
+5. **Pause/Resume** freezes and resumes the current phase. **Next/Previous game** selects a game, resets its timer to 04:00, and pauses. Previous is disabled at game 1; future games loop forever.
+6. **Session options** lets you restart at game 1 or change the team count. These replace the current session. Closing the options window makes no changes.
+7. **Keep screen awake** requests a screen wake lock when supported. Its status shows whether it is active, suspended, or unavailable. The browser or operating system may release it for battery or visibility reasons. See [MDN’s API documentation](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API).
+
+Portrait and landscape are supported. The app saves progress on this device and restores it after refresh or reopening, subject to browser storage availability. Running timers use elapsed wall-clock time, so reopening after a background interval catches up to the appropriate game and phase. Pause before leaving if you want play to stop. Manually changing the device clock can affect an active timer. Sounds and continued background execution are not guaranteed by iPadOS. Keep the app visible during play.
+
+Offline operation and wake lock require HTTPS (or localhost on the same device). Offline caching is implemented with a service worker; browser storage eviction or private hosting authentication may require connecting again. Physical iPad installation, offline relaunch, and wake lock should be checked on your device before a session.
+
+## Run the source locally
+
+Requires Python 3 for serving; Node.js 18+ only for automated tests. No package installation or build is needed.
+
+From this folder:
+
+```sh
+python3 -m http.server 8080 --directory dist
+```
+
+Open http://localhost:8080 in a browser. You can also run `npm start` if Node is installed.
+
+For an iPad on the same Wi-Fi, bind the server to your computer's network interface (the command above does this by default) and open `http://YOUR-COMPUTER-LAN-IP:8080`. The computer firewall must permit the connection. This HTTP preview supports the board and timer; use an HTTPS host for full offline and wake-lock features. `localhost` on the iPad refers to the iPad itself.
+
+## Deploy independently
+
+Upload all contents of `dist/` to any HTTPS static host. No build command, secrets, APIs, or server framework are needed. The app uses relative paths and works in a subdirectory. Serve `.mjs` files as JavaScript and `manifest.webmanifest` as a web manifest or JSON. Use `index.html` as the entry point. The `.openai/hosting.json` file is only for the provided Sites deployment; it can be omitted from independent hosting.
+
+After editing assets for a new release, increment the `CACHE` version in `dist/sw.js`. Close old app windows and reopen to activate the newly cached version. The supplied source has no runtime dependencies.
+
+## Exact schedules and validation
+
+Letters below identify internal schedule slots. The app displays their randomly assigned color names and color markers throughout the board, rotation list, and transition warnings.
+
+**4 teams, 6 games:** AB, CD, AC, BD, AD, BC.
+
+- Every team plays 3 games / 12 minutes per cycle.
+- Every one of the 6 pairings occurs once.
+- Maximum rest is 2 consecutive games (A's maximum is 1).
+- **Consecutive appearances exist:** Team C at 2→3, D at 4→5, and B at 6→1 (the loop boundary).
+- With four teams, the only pairing disjoint from AB is CD, and vice versa. Zero consecutive appearances therefore forces repeating the same complementary pairings. Covering all six pairings requires some consecutive appearances. The app preserves the requested schedule and flags the upcoming conflict.
+
+**5 teams, 20 games:** AB, CD, AE, BD, CE, AD, BE, AC, DE, BC, AE, BD, AC, BE, CD, AB, DE, BC, AD, CE.
+
+- Every team plays 8 games / 32 minutes per cycle.
+- All 10 pairings occur exactly twice.
+- No consecutive appearances, including game 20→1.
+- No team rests more than 2 consecutive games, including across the boundary.
+
+Balance is guaranteed over a complete cycle; stopping partway through a cycle may leave unequal play counts.
+
+## Verification
+
+```sh
+npm test
+# Or, without npm:
+node --test tests/*.test.mjs
+```
+
+Eleven automated tests cover exact schedules, matchup frequency, appearances, maximum cyclic rest, consecutive appearances, indefinite looping, timer phase boundaries, pause/resume in both phases, navigation resets, recovery after long background intervals, and persistent, unique random color assignments. UI checks cover selecting teams, starting, pausing/resuming, navigation, persistence, restart, changing teams, fairness view, and portrait/landscape layouts in the desktop browser. Physical iPad behaviors remain device-dependent.
+
+## Files
+
+- `dist/index.html`: accessible app structure and dialogs
+- `dist/styles.css`: responsive layout, touch targets, colors
+- `dist/engine.mjs`: schedules, validation, timer state transitions
+- `dist/app.mjs`: controls, rendering, local persistence, tones, wake lock
+- `dist/sw.js`: offline app-shell cache
+- `dist/manifest.webmanifest`, icons: Home Screen installation
+- `tests/engine.test.mjs`: automated schedule and timer tests
+
+To customize durations, edit `GAME_MS` and `CHANGE_MS` in `engine.mjs` and update the explanatory UI text and README to match.
