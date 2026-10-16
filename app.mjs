@@ -1,6 +1,6 @@
 import {loadPreferences, savePreferences, durationOK} from './preferences.mjs';
 import {MatchSounds, timerCue, changeoverCount} from './sounds.mjs';
-import {SCHEDULES, PALETTE, validColors, applySettings, assignColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move} from './engine.mjs';
+import {SCHEDULES, PALETTE, validColors, applySettings, assignColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false;
 const KEY = 'touchline-session-v1';
@@ -22,7 +22,7 @@ function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
     if(s) s.gameMs = Number.isInteger(s.gameMs) && s.gameMs>=1000 && s.gameMs<=3600000 && s.gameMs%1000===0 ? s.gameMs : GAME_MS;
-    if(s && [4,5].includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=(s.phase==='game'?s.gameMs:s.changeMs) && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : assignColors(s.teams); state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; preferences.colorsByTeams[s.teams]={...s.colors}; }
+    if(s && [4,5].includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : assignColors(s.teams); s.phaseMs=Math.max(s.remaining,durationOK(s.phaseMs)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; preferences.colorsByTeams[s.teams]={...s.colors}; }
   } catch {}
 }
 function colorName(t) { return state.colors[t]; }
@@ -42,10 +42,12 @@ function render() {
   $('phase-label').textContent=changing?'CHANGEOVER TIMER':'GAME TIMER';
   $('timer-status').textContent=running?(changing?'SWITCH TEAMS':'IN PLAY'):(remaining===(changing?changeMs:gameMs)?'READY WHEN YOU ARE':'PAUSED');
   if(changing && running && remaining<=5000) $('timer-status').textContent=`NEXT GAME IN ${Math.ceil(remaining/1000)}`;
-  $('start').innerHTML=`${running?'Ⅱ':'▶'} <span>${running?'Pause':remaining===(changing?changeMs:gameMs)?(changing?'Start changeover':'Start game'):'Resume'}</span>`;
+  $('start').innerHTML=`${running?'Ⅱ':'▶'} <span>${running?'Pause':(changing?remaining===changeMs:!state.phaseStarted)?(changing?'Start changeover':'Start game'):'Resume'}</span>`;
   $('timer-help').textContent=changing?`Game ${game} finished · Game ${game+1} starts after the changeover`:'Timer optional · Or just tap Next game';
-  $('progress-fill').style.width=`${Math.max(0,Math.min(100,remaining/(changing?changeMs:gameMs)*100))}%`;
+  $('progress-fill').style.width=`${Math.max(0,Math.min(100,remaining/(state.phaseMs ?? (changing?changeMs:gameMs))*100))}%`;
   $('previous').disabled=game===1;
+  $('subtract-time').disabled=remaining<=1000;
+  $('add-time').disabled=remaining>=3600000;
   $('loop-note').textContent=`Loop ${Math.floor((game-1)/SCHEDULES[teams].length)+1} · Game ${(game-1)%SCHEDULES[teams].length+1} of ${SCHEDULES[teams].length}`;
   const shared=[...matchup(teams,game)].filter(t=>matchup(teams,game+1).includes(t));
   $('transition').textContent=shared.length?`Back-to-back: ${shared.map(colorName).join(' & ')} plays again next game. Allow the full changeover.`:'';
@@ -78,9 +80,18 @@ $('start').onclick=async()=> {
   // Unlock audio directly from the tap; browsers require a user gesture.
   const ready=preferences.sounds?sounds.unlock():Promise.resolve(false);
   tick();
-  const beginning=!state.running && state.phase==='game' && state.remaining===state.gameMs;
+  const beginning=!state.running && state.phase==='game' && !state.phaseStarted;
   toggle(state,Date.now());if(!state.running)sounds.stop();persist();render();
   if(await ready) {if(beginning && state.running)playCue('start');}
+};
+$('restart-game').onclick=()=>{
+  sounds.stop();restartGame(state);persist();render();
+  announce(`Game ${state.game} restarted with ${formatTime(state.gameMs)}. Timer paused.`);
+  $('start').focus();
+};
+for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onclick=()=>{
+  sounds.stop();adjustTime(state,delta,Date.now());persist();render();
+  announce(`${state.phase==='game'?'Game':'Changeover'} timer: ${formatTime(state.remaining)}. ${state.running?'Running':'Paused'}.`);
 };
 for(const [id,delta] of [['previous',-1],['next',1]]) $(id).onclick=()=>{sounds.stop();move(state,delta);persist();render();announce(`Game ${state.game}. Timer paused.`);};
 function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`; }

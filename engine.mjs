@@ -29,7 +29,7 @@ export function audit(teams) {
   }));
   return {counts,pairs,conflicts,maxRest};
 }
-export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS, changeMs = CHANGE_MS) { return {teams, colors, gameMs, changeMs, game:1, phase:'game', remaining:gameMs, running:false, deadline:null}; }
+export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS, changeMs = CHANGE_MS) { return {teams, colors, gameMs, changeMs, game:1, phase:'game', phaseStarted:false, phaseMs:gameMs, remaining:gameMs, running:false, deadline:null}; }
 export function settle(state, now) {
   if (!state.running) return state;
   const gameMs = state.gameMs ?? GAME_MS, changeMs = state.changeMs ?? CHANGE_MS;
@@ -47,6 +47,8 @@ export function settle(state, now) {
       }
     }
     state.deadline = now + left;
+    state.phaseStarted = true;
+    state.phaseMs = state.phase==='game' ? gameMs : changeMs;
   }
   state.remaining = left;
   return state;
@@ -54,12 +56,13 @@ export function settle(state, now) {
 export function toggle(state, now) {
   settle(state, now);
   state.running = !state.running;
+  if(state.running && state.phase==='game') state.phaseStarted=true;
   state.deadline = state.running ? now + state.remaining : null;
   return state;
 }
 export function move(state, delta) {
   state.game = Math.max(1, state.game + delta);
-  state.phase = 'game'; state.remaining = state.gameMs ?? GAME_MS; state.running = false; state.deadline = null;
+  state.phase = 'game'; state.phaseStarted=false; state.remaining = state.gameMs ?? GAME_MS; state.phaseMs = state.remaining; state.running = false; state.deadline = null;
   return state;
 }
 
@@ -72,7 +75,19 @@ export function applySettings(state, colors, gameMs, now, changeMs = state.chang
   if (gameMs !== (state.gameMs ?? GAME_MS) || changeMs !== (state.changeMs ?? CHANGE_MS)) {
     state.gameMs = gameMs;
     state.changeMs = changeMs;
-    state.phase = 'game'; state.remaining = gameMs; state.running = false; state.deadline = null;
+    state.phase = 'game'; state.phaseStarted=false; state.remaining = gameMs; state.phaseMs = gameMs; state.running = false; state.deadline = null;
   }
+  return state;
+}
+
+// Reset the current matchup, including from its changeover, without advancing it.
+export function restartGame(state) { return move(state, 0); }
+export function adjustTime(state, delta, now) {
+  if(delta !== 30000 && delta !== -30000) throw new Error('Time adjustments must be 30 seconds.');
+  settle(state, now);
+  state.remaining = Math.max(1000, Math.min(3600000, state.remaining + delta));
+  const duration = state.phase==='game' ? state.gameMs : state.changeMs;
+  state.phaseMs = Math.max(state.phaseMs ?? duration, state.remaining);
+  if(state.running) state.deadline = now + state.remaining;
   return state;
 }
