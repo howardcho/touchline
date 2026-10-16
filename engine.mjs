@@ -29,20 +29,20 @@ export function audit(teams) {
   }));
   return {counts,pairs,conflicts,maxRest};
 }
-export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS) { return {teams, colors, gameMs, game:1, phase:'game', remaining:gameMs, running:false, deadline:null}; }
+export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS, changeMs = CHANGE_MS) { return {teams, colors, gameMs, changeMs, game:1, phase:'game', remaining:gameMs, running:false, deadline:null}; }
 export function settle(state, now) {
   if (!state.running) return state;
-  const gameMs = state.gameMs ?? GAME_MS;
+  const gameMs = state.gameMs ?? GAME_MS, changeMs = state.changeMs ?? CHANGE_MS;
   let left = state.deadline - now;
   if (left <= 0) {
     if (state.phase === 'changeover') { state.game++; state.phase = 'game'; left += gameMs; }
-    else { state.phase = 'changeover'; left += CHANGE_MS; }
+    else { state.phase = 'changeover'; left += changeMs; }
     if (left <= 0) {
-      const cycles = Math.floor(-left / (gameMs + CHANGE_MS));
+      const cycles = Math.floor(-left / (gameMs + changeMs));
       state.game += cycles;
-      left += cycles * (gameMs + CHANGE_MS);
+      left += cycles * (gameMs + changeMs);
       while (left <= 0) {
-        if (state.phase === 'game') { state.phase = 'changeover'; left += CHANGE_MS; }
+        if (state.phase === 'game') { state.phase = 'changeover'; left += changeMs; }
         else { state.phase = 'game'; state.game++; left += gameMs; }
       }
     }
@@ -63,13 +63,15 @@ export function move(state, delta) {
   return state;
 }
 
-export function applySettings(state, colors, gameMs, now) {
+export function applySettings(state, colors, gameMs, now, changeMs = state.changeMs ?? CHANGE_MS) {
   if (!validColors(state.teams, colors)) throw new Error('Choose a different color for each team.');
   if (!Number.isInteger(gameMs) || gameMs < 1000 || gameMs > 3600000 || gameMs % 1000 !== 0) throw new Error('Choose a game time between 1 second and 60 minutes.');
+  if (!Number.isInteger(changeMs) || changeMs < 1000 || changeMs > 3600000 || changeMs % 1000 !== 0) throw new Error('Choose a changeover time between 1 second and 60 minutes.');
   settle(state, now);
   state.colors = {...colors};
-  if (gameMs !== (state.gameMs ?? GAME_MS)) {
+  if (gameMs !== (state.gameMs ?? GAME_MS) || changeMs !== (state.changeMs ?? CHANGE_MS)) {
     state.gameMs = gameMs;
+    state.changeMs = changeMs;
     state.phase = 'game'; state.remaining = gameMs; state.running = false; state.deadline = null;
   }
   return state;

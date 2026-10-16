@@ -6,16 +6,22 @@ A dependency-free, iPad-friendly web app for the sideline. All team schedules an
 
 1. After deploying the source to an HTTPS host, open its URL in Safari. A private hosted copy may ask you to sign in.
 2. Tap **Share → Add to Home Screen → Add**. Enable **Open as Web App** if offered. See [Apple’s iPad instructions](https://support.apple.com/guide/ipad/ipad8f1f7a29/ipados).
-3. Open Touchline from the Home Screen while online once so its offline assets can finish caching. Choose **Four teams** or **Five teams**. The app randomly assigns Red, Blue, Green, and Black to the four team slots, with Yellow added for five teams. Colors remain fixed across games, loops, refreshes, and restarts unless edited in Session options; selecting a team count again creates a new random assignment. A new shuffle can occasionally match the previous one.
-4. The timer is optional: use **Next game** to run the rotation manually. To use the timer, tap **Start game**. Games default to four minutes (editable in Session options), followed automatically by a 30-second changeover. At the end of the changeover, the next game starts automatically. During changeover, NOW PLAYING remains on the game just finished; UP NEXT is the game about to start. A short tone plays at boundaries when the browser allows it.
+3. Open Touchline from the Home Screen while online once so its offline assets can finish caching. Choose **Four teams** or **Five teams**. The app randomly assigns Red, Blue, Green, and Black to the four team slots, with Yellow added for five teams. Colors remain fixed across games, loops, refreshes, and restarts unless edited in Session options; the app remembers edited colors separately for four-team and five-team sessions. A random assignment is created only the first time each team count is used.
+4. The timer is optional: use **Next game** to run the rotation manually. To use the timer, tap **Start game**. Games default to four minutes (editable in Session options), followed automatically by a changeover (default 30 seconds, also editable). At the end of the changeover, the next game starts automatically. During changeover, NOW PLAYING remains on the game just finished; UP NEXT is the game about to start. With sounds enabled, a single long whistle signals kickoff, three quick dings sound when a game crosses one minute remaining, and two short whistles followed by a long whistle signal full time. Changeovers count down aloud from 5 to 1, then the next game begins with the long whistle. Resume does not sound the kickoff whistle, and games of one minute or less skip the one-minute ding.
 5. **Pause/Resume** freezes and resumes the current phase. **Next/Previous game** selects a game, resets its timer to the selected game duration, and pauses. Previous is disabled at game 1; future games loop forever.
 6. **Session options** lets you restart at game 1 or change the team count. Restart keeps your colors and game duration. These replace the current session. Closing the options window makes no changes.
-7. **Session options → Save settings** lets you choose unique team colors from Red, Blue, Green, Black, Yellow, Orange, Purple, Pink, White, and Gray. Set game duration with minutes and seconds (1 second to 60 minutes). Changing duration resets the current game timer and pauses it; color-only edits preserve the current timer. The new duration applies to all subsequent games and is remembered when you choose a new team count. Changeovers remain 30 seconds. Closing without saving discards edits.
+7. **Session options → Save settings** lets you choose unique team colors from Red, Blue, Green, Black, Yellow, Orange, Purple, Pink, White, and Gray. Set game and changeover durations with minutes and seconds (each 1 second to 60 minutes). Changing either duration resets the current game timer and pauses it; color-only edits preserve the current timer. The new duration applies to all subsequent games and is remembered when you choose a new team count. Enable or disable timer sounds, and use Test kickoff, Test dings, Test full time, and Test countdown to preview them. Closing without saving discards edits.
 8. **Keep screen awake** requests a screen wake lock when supported. Its status shows whether it is active, suspended, or unavailable. The browser or operating system may release it for battery or visibility reasons. See [MDN’s API documentation](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API).
 
 Portrait and landscape are supported. The app saves progress on this device and restores it after refresh or reopening, subject to browser storage availability. Running timers use elapsed wall-clock time, so reopening after a background interval catches up to the appropriate game and phase. Pause before leaving if you want play to stop. Manually changing the device clock can affect an active timer. Sounds and continued background execution are not guaranteed by iPadOS. Keep the app visible during play.
 
 Offline operation and wake lock require HTTPS (or localhost on the same device). Offline caching is implemented with a service worker; browser storage eviction or private hosting authentication may require connecting again. Physical iPad installation, offline relaunch, and wake lock should be checked on your device before a session.
+
+## Saved preferences and sound
+
+The app uses `localStorage`, rather than cookies, to keep game duration, changeover duration, sound preference, and team colors on this browser and website. They survive refresh, restart, team-count changes, and normal browser reopening. Current game and timer progress are stored separately. Clearing website data, private browsing, or browser storage eviction can remove them. Settings do not transfer between devices or between the GitHub Pages address and a custom domain. If storage is blocked, the app displays a message and keeps settings for the current page only. Older saved sessions migrate to a 30-second changeover.
+
+Whistles and dings are synthesized locally with Web Audio and work offline. The spoken countdown uses your device’s speech voice (a local English voice is preferred); availability offline depends on installed voices. If speech is unavailable, a short tone accompanies each visible countdown number. Changeovers shorter than five seconds begin with the remaining number. Missed countdown numbers are skipped rather than spoken late. Tap Start/Resume or a sound test to enable audio after opening the app. A countdown preview runs 5 to 1, then plays the kickoff whistle. Keep the app visible and check device volume; iPadOS may suspend audio while the app is hidden or the device is locked. Overdue cues are skipped when returning after a long background interval. Sound previews work even when the saved sound toggle is off.
 
 ## Run the source locally
 
@@ -66,7 +72,7 @@ npm test
 node --test tests/*.test.mjs
 ```
 
-Fourteen automated tests cover exact schedules, matchup frequency, appearances, maximum cyclic rest, consecutive appearances, indefinite looping, timer phase boundaries, pause/resume in both phases, navigation resets, recovery after long background intervals, persistent, unique random color assignments, custom game durations, and settings validation. UI checks cover selecting teams, starting, pausing/resuming, navigation, persistence, restart, changing teams, fairness view, and portrait/landscape layouts in the desktop browser. Physical iPad behaviors remain device-dependent.
+Twenty-six automated tests cover exact schedules, matchup frequency, appearances, maximum cyclic rest, consecutive appearances, indefinite looping, timer phase boundaries, pause/resume in both phases, navigation resets, recovery after long background intervals, persistent, unique random color assignments, custom game durations, settings validation, stored preferences, custom changeover boundaries, audio cue timing, the kickoff and full-time whistle patterns, triple dings, and countdown timing. UI checks cover selecting teams, starting, pausing/resuming, navigation, persistence, restart, changing teams, fairness view, and portrait/landscape layouts in the desktop browser. Physical iPad behaviors remain device-dependent.
 
 ## Files
 
@@ -74,8 +80,10 @@ Fourteen automated tests cover exact schedules, matchup frequency, appearances, 
 - `styles.css`: responsive layout, touch targets, colors
 - `engine.mjs`: schedules, validation, timer state transitions
 - `app.mjs`: controls, rendering, local persistence, tones, wake lock
+- `preferences.mjs`: persistent device preferences and validation
+- `sounds.mjs`: offline sound synthesis and cue timing
 - `sw.js`: offline app-shell cache
 - `manifest.webmanifest`, icons: Home Screen installation
 - `tests/engine.test.mjs`: automated schedule and timer tests
 
-Set game duration in Session options. `GAME_MS` in `engine.mjs` is the four-minute default; `CHANGE_MS` is the fixed 30-second changeover duration. Per-cycle minute totals in the app use the selected game duration; the schedule examples above use the four-minute default.
+Set game duration in Session options. `GAME_MS` in `engine.mjs` is the four-minute default; `CHANGE_MS` is the 30-second changeover default. Per-cycle minute totals in the app use the selected game duration; the schedule examples above use the four-minute default.
