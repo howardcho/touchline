@@ -29,8 +29,8 @@ test('invalid changeover never mutates state and editing it pauses and resets cu
  toggle(s,0);settle(s,GAME_MS+5000);applySettings(s,s.colors,s.gameMs,GAME_MS+5000,45000);
  assert.equal(s.phase,'game');assert.equal(s.remaining,GAME_MS);assert.equal(s.running,false);assert.equal(s.changeMs,45000);
 });
-test('ding triggers only on crossing one minute and never repeats or sounds in changeover',()=>{
- const s=fresh(5);toggle(s,0);settle(s,179800);let before={...s};settle(s,180000);assert.equal(timerCue(before,s,180000),'ding');
+test('one-minute announcement triggers only on crossing one minute and never repeats or sounds in changeover',()=>{
+ const s=fresh(5);toggle(s,0);settle(s,179800);let before={...s};settle(s,180000);assert.equal(timerCue(before,s,180000),'minute');
  before={...s};settle(s,180200);assert.equal(timerCue(before,s,180200),null);
  const short=fresh(4,undefined,60000);toggle(short,0);let old={...short};settle(short,200);assert.equal(timerCue(old,short,200),null);
 });
@@ -50,10 +50,12 @@ test('audio schedules the full whistle and stop cancels all active voices',async
  const sounds=new MatchSounds();sounds.context=context;assert.equal(sounds.play('whistle'),true);assert.equal(started.length,6);assert.equal(sounds.active.size,6);assert.ok(Math.max(...stopped)>1.5);sounds.play('start');assert.equal(sounds.active.size,8);sounds.stop();assert.equal(sounds.active.size,0);
 });
 
-test('kickoff is one long whistle and dings are three distinct quick strikes',()=>{
+test('kickoff stays one long whistle and full-time blasts are slower and longer',()=>{
  assert.equal(SOUND_PLANS.start.length,1);assert.ok(SOUND_PLANS.start[0].duration>=0.8);
- const times=[...new Set(SOUND_PLANS.ding.map(p=>p.at))];assert.equal(times.length,3);assert.ok(times[2]<0.6);
- assert.ok(SOUND_PLANS.ding.filter(p=>p.frequency===1047).every(p=>p.duration<0.24));
+ const p=SOUND_PLANS.whistle;
+ assert.ok(p[0].duration>=0.4);assert.ok(p[1].duration>=0.4);assert.ok(p[2].duration>=1.5);
+ assert.ok(p[1].at-p[0].duration>=0.4);assert.ok(p[2].at-p[1].at-p[1].duration>=0.4);
+ assert.ok(p[2].at+p[2].duration>=3);
 });
 test('changeover speaks each of 5 to 1 once at its threshold, then kickoff whistle',()=>{
  const s=fresh(5);toggle(s,0);settle(s,GAME_MS+CHANGE_MS-5200);
@@ -73,4 +75,12 @@ test('spoken numbers replace queued speech and stop cancels speech',()=>{
  const said=[], canceled=[];class Utterance {constructor(text){this.text=text;}}
  const sounds=new MatchSounds();sounds.Utterance=Utterance;sounds.speech={cancel:()=>canceled.push(true),speak:u=>said.push(u),getVoices:()=>[{lang:'en-US',localService:true}]};
  sounds.sayCount(5);sounds.sayCount(4);assert.deepEqual(said.map(u=>u.text),['5','4']);assert.ok(said[0].voice.localService);assert.equal(sounds.sayCount(0),false);sounds.stop();assert.equal(canceled.length,3);
+});
+
+test('one-minute cue speaks exact message at a clear rate and can be canceled',()=>{
+ const said=[];let canceled=0;class Utterance {constructor(text){this.text=text;}}
+ const sounds=new MatchSounds();sounds.Utterance=Utterance;
+ sounds.speech={cancel:()=>canceled++,speak:u=>said.push(u),getVoices:()=>[{lang:'en-US',localService:true}]};
+ assert.equal(sounds.play('minute'),true);assert.equal(said[0].text,'One minute remaining');assert.equal(said[0].rate,1);assert.ok(said[0].voice.localService);
+ sounds.stop();assert.equal(canceled,2);
 });

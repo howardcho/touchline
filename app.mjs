@@ -55,7 +55,9 @@ function playCue(cue) { if(cue && preferences.sounds && document.visibilityState
 function tick() {
   if(!state?.running) return;
   const before={...state}, now=Date.now();settle(state,now);
-  playCue(timerCue(before,state,now));
+  const cue=timerCue(before,state,now);
+  playCue(cue);
+  if(cue==='minute')announce('One minute remaining.');
   const count=changeoverCount(before,state,now);
   if(count!==null) {
     if(preferences.sounds && document.visibilityState==='visible')sounds.sayCount(count);

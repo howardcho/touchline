@@ -1,9 +1,8 @@
 // Web Audio synthesis keeps all cues available offline without external assets.
 export const SOUND_PLANS = {
   start: [{at:0, duration:0.9, frequency:2600, type:'sine', volume:0.17}],
-  ding: [0,0.24,0.48].flatMap(at => [{at, duration:0.2, frequency:1047, type:'sine', volume:0.24}, {at, duration:0.16, frequency:2094, type:'sine', volume:0.06}]),
   count: [{at:0, duration:0.12, frequency:880, type:'sine', volume:0.14}],
-  whistle: [{at:0, duration:0.17}, {at:0.29, duration:0.18}, {at:0.62, duration:0.9}].map(p=>({...p, frequency:2600, type:'sine', volume:0.17}))
+  whistle: [{at:0, duration:0.4}, {at:0.85, duration:0.45}, {at:1.75, duration:1.6}].map(p=>({...p, frequency:2600, type:'sine', volume:0.17}))
 };
 export function timerCue(before, after, now) {
   if (!before.running || !after.running) return null;
@@ -11,7 +10,7 @@ export function timerCue(before, after, now) {
   const recent = at => now >= at && now-at <= 1500;
   if (after.phase==='changeover' && (before.phase!=='changeover'||before.game!==after.game)) return recent(after.deadline-changeMs) ? 'whistle' : null;
   if (after.phase==='game' && (before.phase!=='game'||before.game!==after.game)) return recent(after.deadline-gameMs) ? 'start' : null;
-  if (after.phase==='game' && gameMs>60000 && before.remaining>60000 && after.remaining<=60000 && recent(after.deadline-60000)) return 'ding';
+  if (after.phase==='game' && gameMs>60000 && before.remaining>60000 && after.remaining<=60000 && recent(after.deadline-60000)) return 'minute';
   return null;
 }
 export function changeoverCount(before, after, now) {
@@ -40,15 +39,18 @@ export class MatchSounds {
   stop() { for(const timer of this.previewTimers) clearTimeout(timer);this.previewTimers.clear();this.stopSpeech(); for(const node of this.active) {try {node.stop();} catch {}} this.active.clear(); }
   sayCount(number) {
     if(!Number.isInteger(number) || number<1 || number>5) return false;
+    return this.speak(String(number),1.25);
+  }
+  speak(text,rate=1) {
     if(!this.speech || !this.Utterance) return this.play('count');
     try {
       this.stopSpeech();
-      const utterance=new this.Utterance(String(number));
-      utterance.lang='en-US';utterance.rate=1.25;utterance.volume=1;
+      const utterance=new this.Utterance(text);
+      utterance.lang='en-US';utterance.rate=rate;utterance.volume=1;
       const voices=this.speech.getVoices();
       const voice=voices.find(v=>v.localService && /^en(-|$)/i.test(v.lang)) || voices.find(v=>/^en(-|$)/i.test(v.lang));
       if(voice)utterance.voice=voice;
-      // If device speech fails, retain an audible tick alongside the visible number.
+      // If device speech fails, retain an audible tick alongside the visible alert.
       utterance.onerror=event=>{if(!['canceled','interrupted'].includes(event.error))this.play('count');};
       this.speech.speak(utterance);return true;
     } catch {return this.play('count');}
@@ -61,6 +63,7 @@ export class MatchSounds {
     }
   }
   play(name) {
+    if(name==='minute')return this.speak('One minute remaining');
     if (!this.context || this.context.state!=='running') return false;
     if(name==='start')this.stopSpeech();
     const ctx=this.context, base=ctx.currentTime+0.02;
@@ -70,8 +73,7 @@ export class MatchSounds {
       osc.connect(filter);filter.connect(gain);gain.connect(ctx.destination);
       const start=base+p.at, end=start+p.duration;
       gain.gain.setValueAtTime(0.0001,start);gain.gain.exponentialRampToValueAtTime(p.volume,start+0.015);
-      if(name==='ding') gain.gain.exponentialRampToValueAtTime(0.0001,end);
-      else {gain.gain.setValueAtTime(p.volume,Math.max(start+0.02,end-0.035));gain.gain.exponentialRampToValueAtTime(0.0001,end);}
+      {gain.gain.setValueAtTime(p.volume,Math.max(start+0.02,end-0.035));gain.gain.exponentialRampToValueAtTime(0.0001,end);}
       if(name==='whistle' || name==='start') {
         const wobble=ctx.createOscillator(), depth=ctx.createGain();wobble.frequency.value=34;depth.gain.value=65;
         wobble.connect(depth);depth.connect(osc.frequency);wobble.start(start);wobble.stop(end);this.active.add(wobble);
