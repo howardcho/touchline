@@ -40,6 +40,17 @@ export function audit(teams) {
 export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS, changeMs = CHANGE_MS) { return {teams, colors, gameMs, changeMs, game:1, phase:'game', phaseStarted:false, phaseMs:gameMs, remaining:gameMs, running:false, deadline:null}; }
 export function settle(state, now) {
   if (!state.running) return state;
+  // A roster change begins at the next kickoff, after the old game's changeover.
+  if(state.pendingTeams && state.deadline<=now) {
+    if(state.phase==='game') {
+      state.phase='changeover';state.phaseStarted=true;
+      state.phaseMs=state.changeMs;state.deadline+=state.changeMs;
+    }
+    if(state.deadline<=now) {
+      const kickoff=state.deadline, pending=state.pendingTeams;
+      beginTeamCycle(state,pending.teams,pending.colors,true,kickoff);
+    }
+  }
   const gameMs = state.gameMs ?? GAME_MS, changeMs = state.changeMs ?? CHANGE_MS;
   let left = state.deadline - now;
   if (left <= 0) {
@@ -69,6 +80,11 @@ export function toggle(state, now) {
   return state;
 }
 export function move(state, delta) {
+  if(delta>0 && state.pendingTeams) {
+    const pending=state.pendingTeams;
+    beginTeamCycle(state,pending.teams,pending.colors,false,null,true);
+    return state;
+  }
   state.game = Math.max(1, state.game + delta);
   state.phase = 'game'; state.phaseStarted=false; state.remaining = state.gameMs ?? GAME_MS; state.phaseMs = state.remaining; state.running = false; state.deadline = null;
   return state;
@@ -98,4 +114,61 @@ export function adjustTime(state, delta, now) {
   state.phaseMs = Math.max(state.phaseMs ?? duration, state.remaining);
   if(state.running) state.deadline = now + state.remaining;
   return state;
+}
+
+export function beginTeamCycle(state, teams, colors, running=false, kickoff=null, manual=false) {
+  if(!TEAM_COUNTS.includes(teams) || !validColors(teams,colors)) throw new Error('Choose between 2 and 5 teams with unique colors.');
+  const history=[...(state.teamHistory || [])];
+  const completed=state.phase==='changeover' || manual ? state.game : Math.max(0,state.game-1);
+  if(completed>0) history.push({teams:state.teams,colors:{...state.colors},lastGame:completed});
+  const segment=(state.segment || 1)+1;
+  const next=fresh(teams,colors,state.gameMs,state.changeMs);
+  delete state.pendingTeams;
+  Object.assign(state,next,{teamHistory:history,segment,sessionRoster:true});
+  if(running){state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;}
+  return state;
+}
+export function changeTeamRoster(state, action, color, now) {
+  if(!['add','remove'].includes(action) || !PALETTE.includes(color))throw new Error('Choose a team color.');
+  settle(state,now);
+  const current=Object.values(state.pendingTeams?.colors || state.colors);
+  let next;
+  if(action==='add') {
+    if(current.length>=5)throw new Error('Maximum five teams.');
+    if(current.includes(color))throw new Error('That color is already playing.');
+    next=[...current,color];
+  } else {
+    if(current.length<=2)throw new Error('Minimum two teams.');
+    if(!current.includes(color))throw new Error('Choose a team in this session.');
+    next=current.filter(c=>c!==color);
+  }
+  const colors=Object.fromEntries(next.map((c,i)=>['ABCDE'[i],c]));
+  if(JSON.stringify(next)===JSON.stringify(Object.values(state.colors))) {delete state.pendingTeams;return state;}
+  if(state.phase==='game' && !state.phaseStarted)return beginTeamCycle(state,next.length,colors);
+  state.pendingTeams={teams:next.length,colors};
+  return state;
+}
+// Convenience API for count-only callers; the UI always asks which color.
+export function changeTeamCount(state, delta, allColors, now) {
+  if(delta!==1 && delta!==-1)throw new Error('Add or remove one team at a time.');
+  settle(state,now);
+  const current=Object.values(state.pendingTeams?.colors || state.colors);
+  const color=delta===1 ? Object.values(allColors).find(c=>!current.includes(c)) : current.at(-1);
+  return changeTeamRoster(state,delta===1?'add':'remove',color,now);
+}
+export function upcomingGame(state, offset=0) {
+  if(offset>0 && state.pendingTeams) return {teams:state.pendingTeams.teams,game:offset,colors:state.pendingTeams.colors};
+  return {teams:state.teams,game:state.game+offset,colors:state.colors};
+}
+
+export function consecutiveColors(state) {
+  const next=upcomingGame(state,1);
+  const nextColors=[...matchup(next.teams,next.game)].map(t=>next.colors[t]);
+  return [...matchup(state.teams,state.game)].map(t=>state.colors[t]).filter(c=>nextColors.includes(c));
+}
+
+export function rosterColorChoices(state, action, savedColors={}) {
+  const planned=Object.values(state.pendingTeams?.colors || state.colors);
+  if(action==='remove')return Object.values(state.colors).filter(c=>planned.includes(c));
+  return [...new Set([...Object.values(savedColors),...PALETTE])].filter(c=>!planned.includes(c));
 }

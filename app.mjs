@@ -1,6 +1,6 @@
 import {loadPreferences, savePreferences, durationOK} from './preferences.mjs';
 import {MatchSounds, timerCue, changeoverCount} from './sounds.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime} from './engine.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, changeTeamRoster, upcomingGame, consecutiveColors, rosterColorChoices} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false;
 const KEY = 'touchline-session-v1';
@@ -11,7 +11,6 @@ function storageWarning() { $('save-note').textContent='Browser storage is unava
 function persist() {
   if(state) {
     preferences.gameMs=state.gameMs; preferences.changeMs=state.changeMs;
-    preferences.colors=completeColors({...preferences.colors,...state.colors});
   }
   try {
     if(state) localStorage.setItem(KEY,JSON.stringify(state)); else localStorage.removeItem(KEY);
@@ -22,11 +21,14 @@ function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
     if(s) s.gameMs = Number.isInteger(s.gameMs) && s.gameMs>=1000 && s.gameMs<=3600000 && s.gameMs%1000===0 ? s.gameMs : GAME_MS;
-    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,durationOK(s.phaseMs)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; preferences.colors=completeColors({...preferences.colors,...s.colors}); }
+    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && s.remaining>0 && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,durationOK(s.phaseMs)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
+      s.teamHistory=Array.isArray(s.teamHistory)?s.teamHistory.filter(h=>TEAM_COUNTS.includes(h.teams)&&Number.isSafeInteger(h.lastGame)&&h.lastGame>0&&validColors(h.teams,h.colors)):[];
+      s.segment=Number.isSafeInteger(s.segment)&&s.segment>0?s.segment:1;
+      state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; if(!s.sessionRoster)preferences.colors=completeColors({...preferences.colors,...s.colors}); }
   } catch {}
 }
 function colorName(t) { return state.colors[t]; }
-function matchHTML(m) { return `<span class="team-letter" data-color="${colorName(m[0])}">${colorName(m[0])}</span><span class="versus">vs</span><span class="team-letter" data-color="${colorName(m[1])}">${colorName(m[1])}</span>`; }
+function matchHTML(m, colors=state.colors) { const name=t=>colors[t]; return `<span class="team-letter" data-color="${name(m[0])}">${name(m[0])}</span><span class="versus">vs</span><span class="team-letter" data-color="${name(m[1])}">${name(m[1])}</span>`; }
 function render() {
   $('setup-time').textContent = formatTime(preferences.gameMs);
   $('setup-changeover').textContent = formatTime(preferences.changeMs);
@@ -39,8 +41,19 @@ function render() {
   const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover';
   $('team-summary').textContent = `${teams} TEAMS · ${SCHEDULES[teams].length}-GAME ROTATION`;
   $('game-number').textContent = `GAME ${game}`;
-  for(const [id,offset] of [['now',0],['next',1],['deck',2]]) { $(''+id+'-match').innerHTML=matchHTML(matchup(teams,game+offset)); $(id+'-match').setAttribute('aria-label',`${colorName(matchup(teams,game+offset)[0])} versus ${colorName(matchup(teams,game+offset)[1])}`); }
-  $('next-number').textContent=`GAME ${game+1}`; $('deck-number').textContent=`GAME ${game+2}`;
+  for(const [id,offset] of [['now',0],['next',1],['deck',2]]) {
+    const upcoming=upcomingGame(state,offset), m=matchup(upcoming.teams,upcoming.game);
+    $(id+'-match').innerHTML=matchHTML(m,upcoming.colors);
+    $(id+'-match').setAttribute('aria-label',`${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}`);
+    if(offset>0) $(id+'-number').textContent=`${state.pendingTeams?'NEW CYCLE · ':''}GAME ${upcoming.game}`;
+  }
+  const planned=state.pendingTeams?.teams ?? teams;
+  $('add-team').disabled=planned===5;$('remove-team').disabled=planned===2;
+  $('roster-count').textContent=state.pendingTeams?(teams===planned?`${teams} teams · queued`:`${teams} → ${planned} teams`):`${teams} teams`;
+  const roster=state.pendingTeams?.colors || state.colors;
+  $('roster-help').textContent=`${state.pendingTeams?'Next roster':'Playing'}: ${Object.values(roster).join(', ')}. Added colors are for this session only.`;
+  $('team-change-status').textContent=state.pendingTeams?`${planned} teams queued: ${Object.values(roster).join(', ')}. Current game and changeover finish first, then a fresh cycle. No catch-up games.`:'';
+  $('cancel-team-change').hidden=!state.pendingTeams;
   const secs=Math.max(0,Math.ceil(remaining/1000)); $('timer').textContent=`${Math.floor(secs/60).toString().padStart(2,'0')}:${(secs%60).toString().padStart(2,'0')}`;
   $('timer').setAttribute('aria-label',`${changing?'Changeover':'Game'} countdown`);
   $('phase-label').textContent=changing?'CHANGEOVER TIMER':'GAME TIMER';
@@ -53,8 +66,8 @@ function render() {
   $('subtract-time').disabled=remaining<=1000;
   $('add-time').disabled=remaining>=3600000;
   $('loop-note').textContent=`Loop ${Math.floor((game-1)/SCHEDULES[teams].length)+1} · Game ${(game-1)%SCHEDULES[teams].length+1} of ${SCHEDULES[teams].length}`;
-  const shared=[...matchup(teams,game)].filter(t=>matchup(teams,game+1).includes(t));
-  $('transition').textContent=shared.length?`Back-to-back: ${shared.map(colorName).join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
+  const shared=consecutiveColors(state);
+  $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
 function announce(text) { $('announcement').textContent=text; }
 function playCue(cue) { if(cue && preferences.sounds && document.visibilityState==='visible') sounds.play(cue); }
@@ -69,7 +82,7 @@ function tick() {
     if(preferences.sounds && document.visibilityState==='visible')sounds.sayCount(count);
     announce(`${count}. Next game starts soon.`);
   }
-  if(before.game!==state.game || before.phase!==state.phase) {
+  if(before.game!==state.game || before.phase!==state.phase || before.segment!==state.segment) {
     announce(state.phase==='changeover'?`Game ${state.game} finished. Changeover: ${formatTime(state.changeMs)}.`:`Game ${state.game}. ${[...matchup(state.teams,state.game)].map(colorName).join(' versus ')}.`);persist();
   }
   render();
@@ -89,6 +102,30 @@ $('start').onclick=async()=> {
   toggle(state,Date.now());if(!state.running)sounds.stop();persist();render();
   if(await ready) {if(beginning && state.running)playCue('start');}
 };
+let rosterAction='add';
+function openRosterPicker(action) {
+  tick();
+  const current=Object.values(state.pendingTeams?.colors || state.colors);
+  if((action==='add' && current.length>=5)||(action==='remove' && current.length<=2))return;
+  rosterAction=action;
+  const candidates=rosterColorChoices(state,action,preferences.colors);
+  $('roster-title').textContent=action==='add'?'Add a team':'Remove a team';
+  $('roster-description').textContent=action==='add'?'Choose the arriving team’s color. This changes only the current session; your saved five colors stay the same.':'Choose one of the teams currently in this session. Only selected teams are listed. The remaining teams keep their colors, and the next cycle starts fresh.';
+  $('roster-color').innerHTML='<option value="" disabled selected>Choose a color</option>'+candidates.map(c=>`<option value="${c}">${c}</option>`).join('');
+  $('roster-confirm').textContent=action==='add'?'Add team':'Remove team';
+  $('roster-error').textContent='';$('roster-dialog').showModal();
+}
+$('add-team').onclick=()=>openRosterPicker('add');
+$('remove-team').onclick=()=>openRosterPicker('remove');
+$('roster-form').onsubmit=event=>{
+  event.preventDefault();
+  try {
+    tick();sounds.stop();changeTeamRoster(state,rosterAction,$('roster-color').value,Date.now());
+    persist();render();$('roster-dialog').close();
+    announce(state.pendingTeams?'Roster change queued for next game.':`${state.teams} teams. Fresh cycle ready.`);
+  } catch(error){$('roster-error').textContent=error.message;}
+};
+$('cancel-team-change').onclick=()=>{delete state.pendingTeams;persist();render();announce('Team-count change canceled.');};
 $('restart-game').onclick=()=>{
   sounds.stop();restartGame(state);persist();render();
   announce(`Game ${state.game} restarted with ${formatTime(state.gameMs)}. Timer paused.`);
@@ -144,7 +181,7 @@ $('settings-form').onsubmit=event=>{
     announce('Settings saved.');
   } catch(error) { $('settings-error').textContent=error.message; }
 };
-$('restart').onclick=()=>{sounds.stop();state=fresh(state.teams, state.colors, state.gameMs, state.changeMs);persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('schedule-button').onclick=()=>{
@@ -153,6 +190,12 @@ $('schedule-button').onclick=()=>{
   $('audit-summary').textContent=`Each team plays ${a.counts.A} ${a.counts.A===1?'game':'games'} (${Number((a.counts.A*state.gameMs/60000).toFixed(2))} minutes) per loop. Every pairing appears ${state.teams===5?'twice':'once'}. Maximum rest: ${Math.max(...Object.values(a.maxRest))} ${Math.max(...Object.values(a.maxRest))===1?'game':'games'}.`;
   $('schedule-list').innerHTML=s.map((m,i)=>`<div class="schedule-row ${i===(state.game-1)%s.length?'active':''}"><span>Game ${i+1}</span><span>${colorName(m[0])} vs ${colorName(m[1])}</span></div>`).join('');
   $('audit-details').textContent=a.conflicts.length?(state.teams>=4?'Exact supplied schedule: consecutive appearances at ':'Repeating schedule: consecutive appearances at ')+a.conflicts.map(c=>`${colorName(c.team)}, ${c.from}→${c.to}`).join('; ')+(state.teams===4 ? '. Four teams cannot play all six unique matchups without consecutive appearances: after any pairing, the only disjoint pairing is its complement.' : state.teams===3 ? '. With three teams, every two matchups share one team. Each team plays twice per loop and rests at most one game.' : '. With two teams, both teams play every game. Use the changeover for a break.'):'Verified across the loop boundary: no consecutive appearances. Every team rests at most two games.';
+  $('team-history').replaceChildren();
+  for(const item of state.teamHistory || []) {
+    const row=document.createElement('p');row.textContent=`${item.teams} teams · ended after game ${item.lastGame} · ${Object.values(item.colors).join(', ')}`;
+    $('team-history').append(row);
+  }
+  $('team-history-section').hidden=!(state.teamHistory?.length);
   $('schedule-dialog').showModal();
 };
 for(const button of document.querySelectorAll('[data-sound]')) button.onclick=async()=>{

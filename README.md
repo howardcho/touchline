@@ -19,6 +19,14 @@ Portrait and landscape are supported. The app saves progress on this device and 
 
 Offline operation and wake lock require HTTPS (or localhost on the same device). Offline caching is implemented with a service worker; browser storage eviction or private hosting authentication may require connecting again. Physical iPad installation, offline relaunch, and wake lock should be checked on your device before a session.
 
+## Add or remove teams during a session
+
+Use **+ Team / − Team** on the board (minimum 2, maximum 5). Each button opens a color picker. Add lets you choose any unused color from the palette (saved colors appear first). Remove lists only the currently selected session teams that have not already been queued for removal; it never lists unused defaults or a not-yet-active arrival. Use Cancel change to discard a queued arrival. Remaining teams keep their colors and relative order. Added colors are session-only: they survive refresh and Restart rotation, but never overwrite the saved five-color defaults. Returning to selection and choosing a new session restores those defaults. The caption shows the current or queued roster. You can queue several changes or cancel them.
+
+If the current game has started, changes apply at the next kickoff, after its changeover. NOW PLAYING stays on the current teams; UP NEXT and ON DECK preview the fresh cycle. With manual timing, **Next game** applies the change and leaves the new game paused. Before the first kickoff, a change applies immediately, paused. Restart game retains a queued change; Restart rotation cancels it.
+
+The new count begins at game 1 of its fixed schedule. Equal games are guaranteed over a complete cycle from that point onward; late arrivals never catch up on earlier games. A count-change boundary can have consecutive appearances, which the board flags. Earlier count segments are retained under **View rotation & fairness → Earlier team counts**, recording the last game reached, not an audited record of actual minutes played. Pending changes and history survive refresh. Returning to selection or restarting the whole rotation clears that session history.
+
 ## Saved preferences and sound
 
 The app uses `localStorage`, rather than cookies, to keep game duration, changeover duration, sound preference, and team colors on this browser and website. They survive refresh, restart, team-count changes, and normal browser reopening. Current game and timer progress are stored separately. Clearing website data, private browsing, or browser storage eviction can remove them. Settings do not transfer between devices or between the GitHub Pages address and a custom domain. If storage is blocked, the app displays a message and keeps settings for the current page only. Older saved sessions migrate to a 30-second changeover.
@@ -79,7 +87,7 @@ npm test
 node --test tests/*.test.mjs
 ```
 
-Thirty-nine automated tests cover exact schedules, matchup frequency, appearances, maximum cyclic rest, consecutive appearances, indefinite looping, timer phase boundaries, pause/resume in both phases, navigation resets, recovery after long background intervals, persistent, ordered team colors, custom game durations, settings validation, stored preferences, custom changeover boundaries, audio cue timing, the kickoff and full-time whistle patterns, the spoken one-minute announcement, countdown timing, current-game restart, and timer adjustments. UI checks cover selecting teams, starting, pausing/resuming, navigation, persistence, restart, changing teams, fairness view, and portrait/landscape layouts in the desktop browser. Physical iPad behaviors remain device-dependent.
+Fifty-five automated tests cover exact schedules, matchup frequency, appearances, maximum cyclic rest, consecutive appearances, indefinite looping, timer phase boundaries, pause/resume in both phases, navigation resets, recovery after long background intervals, persistent, ordered team colors, custom game durations, settings validation, stored preferences, custom changeover boundaries, audio cue timing, the kickoff and full-time whistle patterns, the spoken one-minute announcement, countdown timing, current-game restart, timer adjustments, queued team-count changes, selected arrivals and departures, new-cycle fairness, and count-change history. UI checks cover selecting teams, starting, pausing/resuming, navigation, persistence, restart, changing teams, fairness view, and portrait/landscape layouts in the desktop browser. Physical iPad behaviors remain device-dependent.
 
 ## Files
 

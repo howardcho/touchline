@@ -8,8 +8,8 @@ export function timerCue(before, after, now) {
   if (!before.running || !after.running) return null;
   const gameMs=after.gameMs, changeMs=after.changeMs;
   const recent = at => now >= at && now-at <= 1500;
-  if (after.phase==='changeover' && (before.phase!=='changeover'||before.game!==after.game)) return recent(after.deadline-changeMs) ? 'whistle' : null;
-  if (after.phase==='game' && (before.phase!=='game'||before.game!==after.game)) return recent(after.deadline-gameMs) ? 'start' : null;
+  if (after.phase==='changeover' && (before.phase!=='changeover'||before.game!==after.game||before.segment!==after.segment)) return recent(after.deadline-changeMs) ? 'whistle' : null;
+  if (after.phase==='game' && (before.phase!=='game'||before.game!==after.game||before.segment!==after.segment)) return recent(after.deadline-gameMs) ? 'start' : null;
   if (after.phase==='game' && gameMs>60000 && before.remaining>60000 && after.remaining<=60000 && recent(after.deadline-60000)) return 'minute';
   return null;
 }
@@ -17,7 +17,7 @@ export function changeoverCount(before, after, now) {
   if(!before.running || !after.running || after.phase!=='changeover') return null;
   const n=Math.ceil(after.remaining/1000);
   if(n<1 || n>5) return null;
-  const entered=before.phase!=='changeover' || before.game!==after.game;
+  const entered=before.phase!=='changeover' || before.game!==after.game||before.segment!==after.segment;
   const crossed=entered || Math.ceil(before.remaining/1000)>n;
   const lateness=now-(after.deadline-n*1000);
   return crossed && lateness>=0 && lateness<=350 ? n : null;
