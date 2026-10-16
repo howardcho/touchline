@@ -28,7 +28,10 @@ function restore() {
   } catch {}
 }
 function colorName(t) { return state.colors[t]; }
-function matchHTML(m, colors=state.colors) { const name=t=>colors[t]; return `<span class="team-letter" data-color="${name(m[0])}">${name(m[0])}</span><span class="versus">vs</span><span class="team-letter" data-color="${name(m[1])}">${name(m[1])}</span>`; }
+function teamHTML(color) {
+  return `<span class="team-letter" data-color="${color}"><svg class="team-flag" viewBox="0 0 80 64" aria-hidden="true" focusable="false"><path class="flag-pole" d="M12 7v51"/><path class="flag-cloth" d="M13 10C32 0 48 20 69 9v33C48 53 32 33 13 43Z"/><path class="flag-fold" d="M41 11c9 3 18 4 28-2v33c-10 6-19 5-28 2Z"/></svg>${color}</span>`;
+}
+function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
 function render() {
   $('setup-time').textContent = formatTime(preferences.gameMs);
   $('setup-changeover').textContent = formatTime(preferences.changeMs);
@@ -217,6 +220,7 @@ $('settings-form').onsubmit=event=>{
 $('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
+$('home-link').onclick=event=>{event.preventDefault();backToSelection();};
 $('schedule-button').onclick=()=>{
   const a=audit(state.teams), s=SCHEDULES[state.teams];
   $('schedule-title').textContent=`${state.teams} teams. ${s.length} ${s.length===1?'game':'games'}. Repeat.`;
