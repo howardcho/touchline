@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {MatchSounds,AUDIO_FILES} from '../sounds.mjs';
+import {MatchSounds,AUDIO_FILES,calloutKey,TEAM_CALLOUTS} from '../sounds.mjs';
 import {loadPreferences,savePreferences,PREF_KEY} from '../preferences.mjs';
 function fixture(){
  const sounds=new MatchSounds(),sources=[];
@@ -26,9 +26,9 @@ test('recorded countdown cancels crowd and previous voices, and kickoff clears e
  sounds.play('start');assert.ok(sources[5].stopped);assert.equal(sources[6].buffer.name,'referee');assert.equal(sources[6].startArgs[2],1.25);
  sounds.play('minute');assert.equal(sources[7].buffer.name,'minute');sounds.stop();assert.ok(sources[7].stopped);
 });
-test('crowd choice defaults off and persists independently of master mute',()=>{
+test('crowd choice defaults on and persists independently of master mute',()=>{
  let raw=null;const storage={getItem:k=>k===PREF_KEY?raw:null,setItem:(k,v)=>{raw=v;}};
- const prefs=loadPreferences(storage);assert.equal(prefs.crowd,false);prefs.crowd=true;prefs.sounds=false;
+ const prefs=loadPreferences(storage);assert.equal(prefs.crowd,true);prefs.crowd=true;prefs.sounds=false;
  savePreferences(storage,prefs);assert.equal(loadPreferences(storage).crowd,true);assert.equal(loadPreferences(storage).sounds,false);
 });
 test('all bundled audio and credits are present in the offline cache list',async()=>{
@@ -46,11 +46,21 @@ test('decode failures preserve other recordings and are reported without rejecti
  } finally {globalThis.fetch=savedFetch;}
 });
 
-test('lineup recordings play the requested pairs in order and kickoff cancels every queued word',()=>{
+test('lineup recordings play the requested pairs in order and kickoff cancels both complete sentences',()=>{
  const {sounds,sources}=fixture();assert.equal(sounds.sayTeams(['Red','Blue'],['Purple','Black'],{delay:3.55}),true);
- assert.deepEqual(sources.map(s=>s.buffer.name),['team-Red','and','team-Blue','up','team-Purple','and','team-Black','deck']);
+ assert.deepEqual(sources.map(s=>s.buffer.name),['up-Red-Blue','deck-Black-Purple']);
  assert.ok(sources[0].startArgs[0]>=13.55);
  for(let i=1;i<sources.length;i++)assert.ok(sources[i].startArgs[0]>sources[i-1].startArgs[0]);
- sounds.play('start');assert.ok(sources.slice(0,8).every(s=>s.stopped));
+ sounds.play('start');assert.ok(sources.slice(0,2).every(s=>s.stopped));
  assert.equal(sounds.sayTeams(['Invalid','Blue'],['Purple','Black']),false);
+});
+
+test('complete callouts cover both instructions for every distinct color pairing in either order',()=>{
+ const colors=['Red','Blue','Green','Black','Yellow','Orange','Purple','Pink','White','Gray'];
+ assert.equal(TEAM_CALLOUTS.length,90);
+ for(const a of colors)for(const b of colors)for(const role of ['up','deck']){
+  const key=calloutKey([a,b],role);
+  if(a===b)assert.equal(key,null);
+  else{assert.ok(AUDIO_FILES[key]);assert.equal(key,calloutKey([b,a],role));}
+ }
 });

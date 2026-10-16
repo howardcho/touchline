@@ -1,9 +1,16 @@
 import {PALETTE,upcomingGame,matchup} from './engine.mjs';
 // Recorded assets are decoded once per page, then scheduled with Web Audio offline.
 // Synthesized cues and device speech remain a fallback if an asset cannot load.
+export const TEAM_CALLOUTS = Object.freeze(PALETTE.flatMap((first,i)=>PALETTE.slice(i+1).flatMap(second=>['up','deck'].map(role=>({
+  key:`${role}-${first}-${second}`,file:`callouts/${role}-${first.toLowerCase()}-${second.toLowerCase()}.mp3`
+})))));
+export function calloutKey(pair,role) {
+  if(!['up','deck'].includes(role) || !Array.isArray(pair) || pair.length!==2 || pair[0]===pair[1] || !pair.every(c=>PALETTE.includes(c)))return null;
+  const [first,second]=[...pair].sort((a,b)=>PALETTE.indexOf(a)-PALETTE.indexOf(b));
+  return `${role}-${first}-${second}`;
+}
 export const AUDIO_FILES = Object.freeze({
-  ...Object.fromEntries(PALETTE.map(color=>[`team-${color}`,`callout-team-${color.toLowerCase()}.mp3`])),
-  and:'callout-and.mp3',up:'callout-up.mp3',deck:'callout-deck.mp3',
+  ...Object.fromEntries(TEAM_CALLOUTS.map(({key,file})=>[key,file])),
   referee:'referee.mp3', crowd:'crowd.mp3', minute:'minute.mp3',
   ...Object.fromEntries([1,2,3,4,5].map(n=>[`count-${n}`,`count-${n}.mp3`]))
 });
@@ -28,10 +35,10 @@ export function timerCue(before, after, now) {
   return null;
 }
 export function changeoverCount(before, after, now) {
-  if(!before.running || !after.running || after.phase!=='changeover') return null;
+  if(!before.running || !after.running || !['changeover','countdown'].includes(after.phase)) return null;
   const n=Math.ceil(after.remaining/1000);
   if(n<1 || n>5) return null;
-  const entered=before.phase!=='changeover' || before.game!==after.game||before.segment!==after.segment;
+  const entered=before.phase!==after.phase || before.game!==after.game||before.segment!==after.segment;
   const crossed=entered || Math.ceil(before.remaining/1000)>n;
   const lateness=now-(after.deadline-n*1000);
   return crossed && lateness>=0 && lateness<=350 ? n : null;
@@ -101,12 +108,13 @@ export class MatchSounds {
     } catch {return this.play('count');}
   }
   sayTeams(up,deck,{delay=0}={}) {
-    if(![up,deck].every(pair=>Array.isArray(pair)&&pair.length===2&&pair.every(c=>PALETTE.includes(c))))return false;
+    const keys=[calloutKey(up,'up'),calloutKey(deck,'deck')];
+    if(keys.some(key=>!key))return false;
     this.stopSpeech();
-    const tokens=[`team-${up[0]}`,'and',`team-${up[1]}`,'up',`team-${deck[0]}`,'and',`team-${deck[1]}`,'deck'];
-    if(tokens.every(key=>this.buffers.has(key))) {
-      let at=delay;
-      for(const key of tokens){this.recorded(key,{at,group:'voice'});at+=this.buffers.get(key).duration+(key==='up'?0.3:0.055);}
+    // Each matchup and its instruction is one continuous spoken sentence.
+    if(keys.every(key=>this.buffers.has(key))) {
+      this.recorded(keys[0],{at:delay,group:'voice'});
+      this.recorded(keys[1],{at:delay+this.buffers.get(keys[0]).duration+0.25,group:'voice'});
       return true;
     }
     const text=`Team ${up[0]} and team ${up[1]}, you're up! Team ${deck[0]} and team ${deck[1]}, you're on deck!`;

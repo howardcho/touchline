@@ -1,4 +1,4 @@
-import {settleSession,prepareSessionGame} from './session.mjs';
+import {settleSession,prepareSessionGame,canStartGame,finishSession} from './session.mjs';
 export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
   2: ['AB'],
@@ -39,7 +39,23 @@ export function audit(teams) {
   return {counts,pairs,conflicts,maxRest};
 }
 export function fresh(teams, colors = assignColors(teams), gameMs = GAME_MS, changeMs = CHANGE_MS) { return {teams, colors, gameMs, changeMs, game:1, phase:'game', phaseStarted:false, phaseMs:gameMs, remaining:gameMs, running:false, deadline:null}; }
-export function settle(state, now) { return settleSession(state,now,settleRotation); }
+export function settle(state, now) {
+  if(state.phase==='countdown' && !state.finished) {
+    if(!state.running)return settleSession(state,now,settleRotation);
+    if(state.deadline>now){
+      if(Number.isFinite(state.endAt)&&now>=state.endAt)return finishSession(state,state.endAt);
+      state.remaining=state.deadline-now;return state;
+    }
+    const kickoff=state.deadline,duration=state.openingGameMs??state.gameMs;
+    if(!canStartGame(state,kickoff,duration))return finishSession(state,kickoff,kickoff>=state.endAt?'end-time':'insufficient-time');
+    if(state.pendingTeams){const pending=state.pendingTeams;beginTeamCycle(state,pending.teams,pending.colors);}
+    state.phase='game';state.phaseStarted=false;state.remaining=duration;state.phaseMs=duration;
+    state.countdownDone=true;delete state.openingGameMs;
+    if(!prepareSessionGame(state,kickoff))return state;
+    state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.remaining;
+  }
+  return settleSession(state,now,settleRotation);
+}
 function settleRotation(state, now) {
   if (!state.running) return state;
   // A roster change begins at the next kickoff, after the old game's changeover.
@@ -76,7 +92,13 @@ function settleRotation(state, now) {
 }
 export function toggle(state, now) {
   settle(state, now);
-  if(state.finished || (!state.running && !prepareSessionGame(state,now)))return state;
+  if(state.finished)return state;
+  if(!state.running && state.phase==='game' && state.game===1 && !state.phaseStarted && state.startCountdown && !state.countdownDone){
+    if(!prepareSessionGame(state,now+5000))return state;
+    state.openingGameMs=state.remaining;state.phase='countdown';state.phaseStarted=true;state.phaseMs=5000;state.remaining=5000;
+  } else if(!state.running && state.phase==='countdown'){
+    if(!canStartGame(state,now+state.remaining,state.openingGameMs??state.gameMs))return finishSession(state,now,now>=state.endAt?'end-time':'insufficient-time');
+  } else if(!state.running && !prepareSessionGame(state,now))return state;
   state.running = !state.running;
   if(state.running && state.phase==='game') state.phaseStarted=true;
   state.deadline = state.running ? now + state.remaining : null;
@@ -89,6 +111,8 @@ export function move(state, delta) {
     beginTeamCycle(state,pending.teams,pending.colors,false,null,true);
     return state;
   }
+  if(state.phase==='countdown' && delta!==0)state.countdownDone=true;
+  delete state.openingGameMs;
   state.game = Math.max(1, state.game + delta);
   state.phase = 'game'; state.phaseStarted=false; state.remaining = state.gameMs ?? GAME_MS; state.phaseMs = state.remaining; state.running = false; state.deadline = null;
   return state;
@@ -111,7 +135,7 @@ export function applySettings(state, colors, gameMs, now, changeMs = state.chang
 // Reset the current matchup, including from its changeover, without advancing it.
 export function restartGame(state) { return move(state, 0); }
 export function adjustTime(state, delta, now) {
-  if(state.finished)return state;
+  if(state.finished || state.phase==='countdown')return state;
   if(delta !== 30000 && delta !== -30000) throw new Error('Time adjustments must be 30 seconds.');
   settle(state, now);
   if(state.finished)return state;
@@ -180,4 +204,17 @@ export function rosterColorChoices(state, action, savedColors={}) {
   const planned=Object.values(state.pendingTeams?.colors || state.colors);
   if(action==='remove')return Object.values(state.colors).filter(c=>planned.includes(c));
   return [...new Set([...Object.values(savedColors),...PALETTE])].filter(c=>!planned.includes(c));
+}
+
+// Display the imminent kickoff throughout changeover, including a queued roster.
+export function boardGames(state) {
+  const waiting=!state.finished && ['changeover','countdown'].includes(state.phase);
+  const base=waiting && state.phase==='changeover'?1:0;
+  const titles=waiting?['UP NEXT','ON DECK','AFTER THAT']:['NOW PLAYING','UP NEXT','ON DECK'];
+  return titles.map((title,i)=>{
+    const next=waiting && state.phase==='countdown' && state.pendingTeams
+      ? {teams:state.pendingTeams.teams,colors:state.pendingTeams.colors,game:i+1}
+      : upcomingGame(state,base+i);
+    return {...next,title,match:matchup(next.teams,next.game)};
+  });
 }

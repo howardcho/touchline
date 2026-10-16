@@ -17,6 +17,7 @@ Preset voice: Mark. Lines: "One minute remaining!", "Five!", "Four!",
 "Three!", "Two!", "One!". Trimmed and normalized for offline playback.
 No voice cloning or real announcer impersonation.
 
-Team callouts: AI-generated using Runway, Miriam preset (calm British woman).
-Reusable team names and connecting phrases are assembled for the actual roster.
-Trimmed and normalized for offline playback.
+Team callouts: AI-generated using Runway, Mark preset (energetic announcer).
+Each complete sentence includes both team names and the matching instruction.
+All 45 distinct color pairs have an up-next and on-deck recording.
+Trimmed and normalized consistently for offline playback.

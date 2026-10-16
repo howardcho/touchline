@@ -1,13 +1,14 @@
 import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {MatchSounds, timerCue, changeoverCount, lineupFor} from './sounds.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, changeTeamRoster, upcomingGame, consecutiveColors, rosterColorChoices} from './engine.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices} from './engine.mjs';
 const $ = id => document.getElementById(id);
-let state = null, wakeLock = null, wantWake = false;
+let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
 const sounds = new MatchSounds();
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
+wantWake=preferences.keepAwake;$('wake').checked=wantWake;
 function storageWarning() { $('save-note').textContent='Browser storage is unavailable. Settings will last only while this page stays open.'; }
 function persist() {
   if(state) {
@@ -22,10 +23,13 @@ function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
     if(s) s.gameMs = Number.isInteger(s.gameMs) && s.gameMs>=1000 && s.gameMs<=3600000 && s.gameMs%1000===0 ? s.gameMs : GAME_MS;
-    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && (s.remaining>0 || (s.finished===true && s.remaining===0)) && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,(Number.isFinite(s.phaseMs)&&s.phaseMs>0&&s.phaseMs<=3600000)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
+    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover','countdown'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && (s.remaining>0 || (s.finished===true && s.remaining===0)) && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,(Number.isFinite(s.phaseMs)&&s.phaseMs>0&&s.phaseMs<=3600000)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
       s.teamHistory=Array.isArray(s.teamHistory)?s.teamHistory.filter(h=>TEAM_COUNTS.includes(h.teams)&&Number.isSafeInteger(h.lastGame)&&h.lastGame>0&&validColors(h.teams,h.colors)):[];
       s.segment=Number.isSafeInteger(s.segment)&&s.segment>0?s.segment:1;
       if(!Number.isFinite(s.endAt) || !END_MODES.includes(s.endMode)){delete s.endAt;delete s.endMode;}
+      s.startCountdown=typeof s.startCountdown==='boolean'?s.startCountdown:preferences.startCountdown;
+      s.openingGameMs=Number.isFinite(s.openingGameMs)&&s.openingGameMs>0&&s.openingGameMs<=3600000?s.openingGameMs:s.gameMs;
+      s.countdownDone=typeof s.countdownDone==='boolean'?s.countdownDone:s.phase!=='countdown'&&s.phaseStarted;
       s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
       state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; if(!s.sessionRoster)preferences.colors=completeColors({...preferences.colors,...s.colors}); }
   } catch {}
@@ -45,14 +49,16 @@ function render() {
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
-  const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover';
+  const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover',opening=phase==='countdown';
+  const displayed=boardGames(state),main=displayed[0];
   $('team-summary').textContent = `${teams} TEAMS · ${SCHEDULES[teams].length}-GAME ROTATION`;
-  $('game-number').textContent = `GAME ${game}`;
-  for(const [id,offset] of [['now',0],['next',1],['deck',2]]) {
-    const upcoming=upcomingGame(state,offset), m=matchup(upcoming.teams,upcoming.game);
+  $('game-number').textContent = `GAME ${main.game}`;
+  for(const [i,id] of ['now','next','deck'].entries()) {
+    const upcoming=displayed[i],m=upcoming.match;
+    $(id+'-title').textContent=upcoming.title;
     $(id+'-match').innerHTML=matchHTML(m,upcoming.colors);
     $(id+'-match').setAttribute('aria-label',`${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}`);
-    if(offset>0) $(id+'-number').textContent=`${state.pendingTeams?'NEW CYCLE · ':''}GAME ${upcoming.game}`;
+    if(i>0) $(id+'-number').textContent=`${state.pendingTeams?'NEW CYCLE · ':''}GAME ${upcoming.game}`;
   }
   const planned=state.pendingTeams?.teams ?? teams;
   $('add-team').disabled=planned===5;$('remove-team').disabled=planned===2;
@@ -62,17 +68,19 @@ function render() {
   $('team-change-status').textContent=state.pendingTeams?`${planned} teams queued: ${Object.values(roster).join(', ')}. Current game and changeover finish first, then a fresh cycle. No catch-up games.`:'';
   $('cancel-team-change').hidden=!state.pendingTeams;
   const secs=Math.max(0,Math.ceil(remaining/1000)); $('timer').textContent=`${Math.floor(secs/60).toString().padStart(2,'0')}:${(secs%60).toString().padStart(2,'0')}`;
-  $('timer').setAttribute('aria-label',`${changing?'Changeover':'Game'} countdown`);
-  $('phase-label').textContent=changing?'CHANGEOVER TIMER':'GAME TIMER';
+  $('timer').setAttribute('aria-label',`${opening?'Session start':changing?'Changeover':'Game'} countdown`);
+  $('phase-label').textContent=opening?'SESSION STARTS IN':changing?'CHANGEOVER TIMER':'GAME TIMER';
   $('timer-status').textContent=running?(changing?'SWITCH TEAMS':'IN PLAY'):(remaining===(changing?changeMs:gameMs)?'READY WHEN YOU ARE':'PAUSED');
+  if(opening)$('timer-status').textContent=running?`STARTING IN ${Math.ceil(remaining/1000)}`:'COUNTDOWN PAUSED';
   if(changing && running && remaining<=5000) $('timer-status').textContent=`NEXT GAME IN ${Math.ceil(remaining/1000)}`;
   $('start').innerHTML=`${running?'Ⅱ':'▶'} <span>${running?'Pause':(changing?remaining===changeMs:!state.phaseStarted)?(changing?'Start changeover':'Start game'):'Resume'}</span>`;
-  $('timer-help').textContent=changing?`Game ${game} finished · Game ${game+1} starts after the changeover`:'Timer optional · Or just tap Next game';
+  if(!running && phase==='game' && game===1 && !state.phaseStarted && state.startCountdown && !state.countdownDone)$('start').innerHTML='▶ <span>Start session</span>';
+  $('timer-help').textContent=opening?'Get ready · First game starts after the countdown':changing?`Game ${game} finished · Game ${main.game} starts after the changeover`:'Timer optional · Or just tap Next game';
   $('progress-fill').style.width=`${Math.max(0,Math.min(100,remaining/(state.phaseMs ?? (changing?changeMs:gameMs))*100))}%`;
   $('previous').disabled=game===1;
-  $('subtract-time').disabled=remaining<=1000;
-  $('add-time').disabled=remaining>=3600000;
-  $('loop-note').textContent=`Loop ${Math.floor((game-1)/SCHEDULES[teams].length)+1} · Game ${(game-1)%SCHEDULES[teams].length+1} of ${SCHEDULES[teams].length}`;
+  $('subtract-time').disabled=opening||remaining<=1000;
+  $('add-time').disabled=opening||remaining>=3600000;
+  $('loop-note').textContent=`Loop ${Math.floor((main.game-1)/SCHEDULES[main.teams].length)+1} · Game ${(main.game-1)%SCHEDULES[main.teams].length+1} of ${SCHEDULES[main.teams].length}`;
   const shared=consecutiveColors(state);
   $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';
   if(state.finished){
@@ -83,7 +91,8 @@ function render() {
     for(const id of ['next','deck']){$(id+'-match').textContent='Session complete';$(id+'-match').setAttribute('aria-label','Session complete');$(id+'-number').textContent='';}
     return;
   }
-  $('start').disabled=false;$('next').disabled=false;$('restart-game').disabled=false;
+  $('start').disabled=preparingStart;$('next').disabled=false;$('restart-game').disabled=false;
+  if(preparingStart)$('start').textContent='Preparing audio…';
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
 function announce(text) { $('announcement').textContent=text; }
@@ -119,18 +128,29 @@ for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('cl
   preferences.setupTeams=teams;
   let ending;try{ending=resolveSessionEnd(preferences);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
-  state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending};
+  state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown};
   persist();render();$('start').focus();
 });
 $('start').onclick=async()=> {
+  if(preparingStart)return;
   sounds.stop();
-  // Unlock audio directly from the tap; browsers require a user gesture.
   const ready=preferences.sounds?sounds.unlock():Promise.resolve(false);
   tick();
+  if(wantWake&&!wakeLock)acquireWake();
+  const initial=!state.running && state.phase==='game' && state.game===1 && !state.phaseStarted && state.startCountdown && !state.countdownDone;
+  const resumeOpening=!state.running && state.phase==='countdown';
+  if(initial || resumeOpening){
+    preparingStart=true;const original=state,generation=sounds.generation;render();
+    const audioReady=await ready;preparingStart=false;
+    if(state!==original || sounds.generation!==generation || state.finished){render();return;}
+    toggle(state,Date.now());persist();render();
+    if(initial && audioReady && state.running && state.phase==='countdown' && soundEnabled(preferences,'countdown'))sounds.sayCount(5);
+    announce(state.finished?'Session complete.':initial?'Five-second countdown.':'Countdown resumed.');return;
+  }
   const beginning=!state.running && state.phase==='game' && !state.phaseStarted;
   toggle(state,Date.now());if(!state.running)sounds.stop();persist();render();
-  const startedState=state,startedGame=state.game;
-  if(await ready) {if(beginning && state===startedState && state.running && state.phase==='game' && state.game===startedGame)playCue('start');}
+  const startedState=state,startedGame=state.game,generation=sounds.generation;
+  if(await ready) {if(generation===sounds.generation && beginning && state===startedState && state.running && state.phase==='game' && state.game===startedGame)playCue('start');}
 };
 let rosterAction='add';
 function openRosterPicker(action) {
@@ -222,6 +242,7 @@ function openSettings() {
   $('change-seconds').value=(source.changeMs/1000)%60;
   $('sounds-enabled').checked=preferences.sounds;
   $('crowd-enabled').checked=preferences.crowd;
+  $('start-countdown-enabled').checked=preferences.startCountdown;
   $('end-enabled').checked=preferences.endEnabled;$('end-time').value=preferences.endTime;$('end-mode').value=preferences.endMode;
   $('min-game-minutes').value=Math.floor(preferences.minGameMs/60000);$('min-game-seconds').value=preferences.minGameMs/1000%60;
   syncEndFields();
@@ -249,6 +270,7 @@ $('settings-form').onsubmit=event=>{
     applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
     const minGameMs=(Number($('min-game-minutes').value)*60+Number($('min-game-seconds').value))*1000;
     if($('end-enabled').checked && $('end-mode').value==='hard' && (!durationOK(minGameMs)||minGameMs>gameMs)){selectSettingsTab('session');throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');}
+    preferences.startCountdown=$('start-countdown-enabled').checked;
     preferences.endEnabled=$('end-enabled').checked;preferences.endTime=$('end-time').value;preferences.endMode=$('end-mode').value;
     preferences.minGameMs=durationOK(minGameMs)?minGameMs:120000;
     preferences.gameMs=gameMs;preferences.changeMs=changeMs;
@@ -262,7 +284,7 @@ $('settings-form').onsubmit=event=>{
     announce('Settings saved.');
   } catch(error) { $('settings-error').textContent=error.message; }
 };
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
@@ -295,7 +317,7 @@ async function acquireWake() {
   try {wakeLock=await navigator.wakeLock.request('screen');$('wake-status').textContent='Active';wakeLock.addEventListener('release',()=>{$('wake-status').textContent=wantWake?'Suspended':'';wakeLock=null;});}
   catch { $('wake-status').textContent='Unavailable — check display settings'; }
 }
-$('wake').onchange=async()=>{wantWake=$('wake').checked;if(wantWake)await acquireWake();else {await wakeLock?.release();$('wake-status').textContent='';}};
+$('wake').onchange=async()=>{wantWake=$('wake').checked;preferences.keepAwake=wantWake;persist();if(wantWake)await acquireWake();else {await wakeLock?.release();$('wake-status').textContent='';}};
 if(!('wakeLock' in navigator)) { $('wake').disabled=true; $('wake-status').textContent='Not supported in this browser'; }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')sounds.stop();if(document.visibilityState==='visible'){tick();if(wantWake&&!wakeLock)acquireWake();}persist();});
 window.addEventListener('pagehide',persist);
