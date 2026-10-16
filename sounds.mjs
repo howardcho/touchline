@@ -31,7 +31,7 @@ export function timerCue(before, after, now) {
   const recent = at => now >= at && now-at <= 1500;
   if (after.phase==='changeover' && (before.phase!=='changeover'||before.game!==after.game||before.segment!==after.segment)) return recent(after.deadline-changeMs) ? 'whistle' : null;
   if (after.phase==='game' && (before.phase!=='game'||before.game!==after.game||before.segment!==after.segment)) return recent(after.deadline-(after.phaseMs??gameMs)) ? 'start' : null;
-  if (after.phase==='game' && gameMs>60000 && before.remaining>60000 && after.remaining<=60000 && recent(after.deadline-60000)) return 'minute';
+  if (after.phase==='game' && (after.phaseMs??gameMs)>60000 && before.remaining>60000 && after.remaining<=60000 && recent(after.deadline-60000)) return 'minute';
   return null;
 }
 export function changeoverCount(before, after, now) {

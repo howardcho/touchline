@@ -8,9 +8,7 @@ export function soundEnabled(preferences,cue) {
 }
 export const PREF_KEY = 'touchline-preferences-v1';
 export const durationOK = value => Number.isInteger(value) && value >= 1000 && value <= 3600000 && value % 1000 === 0;
-export function loadPreferences(storage) {
-  let raw = {}, legacy;
-  try { raw = JSON.parse(storage.getItem(PREF_KEY)) || {}; legacy = Number(storage.getItem('touchline-game-duration')); } catch {}
+function normalize(raw, legacy) {
   const setupTeams=TEAM_COUNTS.includes(raw.setupTeams) ? raw.setupTeams : 4;
   const older=raw.colorsByTeams?.[setupTeams] || raw.colorsByTeams?.[5] || {};
   return {
@@ -29,6 +27,29 @@ export function loadPreferences(storage) {
     colors: validColors(5,raw.colors) ? {...raw.colors} : completeColors(older)
   };
 }
+const PROFILE_KEYS = ['gameMs','changeMs','colors','sounds','crowd','audioCues','startCountdown','endEnabled','endTime','endMode','minGameMs'];
+export function profileFor(preferences, teams) {
+  const source=preferences.profiles?.[teams] ?? preferences;
+  return structuredClone(Object.fromEntries(PROFILE_KEYS.map(key=>[key,source[key]])));
+}
+export function selectProfile(preferences, teams) {
+  if(!TEAM_COUNTS.includes(teams))throw new Error('Choose 2 to 5 teams.');
+  Object.assign(preferences,profileFor(preferences,teams),{setupTeams:teams});
+  return preferences;
+}
+export function loadPreferences(storage) {
+  let raw={},legacy;
+  try {raw=JSON.parse(storage.getItem(PREF_KEY))||{};legacy=Number(storage.getItem('touchline-game-duration'));}catch{}
+  const preferences=normalize(raw,legacy);
+  // Seed every profile from the existing settings on upgrade; edits are independent.
+  preferences.profiles=Object.fromEntries(TEAM_COUNTS.map(teams=>{
+    const source=normalize({...preferences,...raw.profiles?.[teams]},legacy);
+    return [teams,profileFor(source,teams)];
+  }));
+  return selectProfile(preferences,preferences.setupTeams);
+}
 export function savePreferences(storage, preferences) {
+  // The flat fields are the selected setup profile, never the active session.
+  if(preferences.profiles)preferences.profiles[preferences.setupTeams]=profileFor({...preferences,profiles:undefined},preferences.setupTeams);
   try {storage.setItem(PREF_KEY, JSON.stringify(preferences)); return true;} catch {return false;}
 }

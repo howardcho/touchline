@@ -54,3 +54,10 @@
 .session-note{font-size:12px;line-height:1.5;color:#60705c;margin:10px 0 16px}.session-note:empty,#setup-error:empty{display:none}#setup-error{color:#a13a2e;font-size:13px}.session-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 12px}.session-fields input{font:inherit;color:var(--green);background:#fffef7;min-height:44px;border:1px solid #b7c3ad;border-radius:9px;padding:8px;width:100%;min-width:0}#settings-session-panel .duration-fields{max-width:290px}#settings-session-panel input:disabled,#settings-session-panel select:disabled{opacity:.45}#board:has(#start:disabled) .queue-card p{visibility:hidden}
 
 @media(max-height:700px){#settings-session-panel .field-help{margin:6px 0 8px}#settings-session-panel .session-fields{margin-bottom:8px}#settings-form #settings-session-panel fieldset{margin-bottom:10px}}
+
+/* Per-team-count defaults and session-only duration controls. */
+.profile-picker{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:650;margin:0 0 14px}.profile-picker select{min-height:44px;padding:8px 12px;border:1px solid #b7c3ad;border-radius:9px;background:#fffef7;color:var(--green);font:inherit}.profile-picker span{font-size:11px;font-weight:400;color:#60705c}
+.team-option{position:relative;padding-bottom:45px}.option-timing{position:absolute;bottom:15px;left:25px;font-size:11px;color:#60705c}
+#defaults-count{margin-bottom:0}#setup-end-note{margin-top:6px}
+#timing-dialog{max-width:600px;padding:24px}#timing-dialog h2{font-size:27px;margin:0}#timing-form fieldset{border:0;padding:0;margin:0;min-width:0}#timing-form legend{font-size:14px;font-weight:750}#timing-form .field-help{font-size:12px}#timing-error{color:#a13a2e;font-size:13px}#timing-error:empty{display:none}.timing-actions{display:flex;gap:12px;align-items:center;margin-top:20px}.timing-actions .primary{flex:1;font-size:16px;min-height:48px;padding:12px}
+@media(max-width:540px){.profile-picker{flex-wrap:wrap}.profile-picker span{flex-basis:100%}.board-actions{max-width:190px}}

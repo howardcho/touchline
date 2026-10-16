@@ -132,6 +132,20 @@ export function applySettings(state, colors, gameMs, now, changeMs = state.chang
   return state;
 }
 
+// New durations affect future phases without moving an active phase's deadline.
+export function updateSessionTiming(state, gameMs, changeMs, now) {
+  for(const [label,value] of [['game',gameMs],['changeover',changeMs]]) {
+    if(!Number.isInteger(value)||value<1000||value>3600000||value%1000!==0)
+      throw new Error(`Choose a ${label} time between 1 second and 60 minutes.`);
+  }
+  settle(state,now);
+  if(state.finished)throw new Error('This session has ended. Return to selection to start another.');
+  state.gameMs=gameMs;state.changeMs=changeMs;
+  if(state.phase==='game' && !state.phaseStarted)state.remaining=state.phaseMs=gameMs;
+  if(state.phase==='countdown')state.openingGameMs=gameMs;
+  return state;
+}
+
 // Reset the current matchup, including from its changeover, without advancing it.
 export function restartGame(state) { return move(state, 0); }
 export function adjustTime(state, delta, now) {

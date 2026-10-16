@@ -1,7 +1,7 @@
 import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
-import {loadPreferences, savePreferences, durationOK, AUDIO_CUES, soundEnabled} from './preferences.mjs';
+import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {MatchSounds, timerCue, changeoverCount, lineupFor} from './sounds.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices} from './engine.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
@@ -11,9 +11,6 @@ try { preferences=loadPreferences(localStorage); } catch { preferences=loadPrefe
 wantWake=preferences.keepAwake;$('wake').checked=wantWake;
 function storageWarning() { $('save-note').textContent='Browser storage is unavailable. Settings will last only while this page stays open.'; }
 function persist() {
-  if(state) {
-    preferences.gameMs=state.gameMs; preferences.changeMs=state.changeMs;
-  }
   try {
     if(state) localStorage.setItem(KEY,JSON.stringify(state)); else localStorage.removeItem(KEY);
     if(!savePreferences(localStorage,preferences)) storageWarning();
@@ -31,7 +28,7 @@ function restore() {
       s.openingGameMs=Number.isFinite(s.openingGameMs)&&s.openingGameMs>0&&s.openingGameMs<=3600000?s.openingGameMs:s.gameMs;
       s.countdownDone=typeof s.countdownDone==='boolean'?s.countdownDone:s.phase!=='countdown'&&s.phaseStarted;
       s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
-      state=s; preferences.gameMs=s.gameMs; preferences.changeMs=s.changeMs; if(!s.sessionRoster)preferences.colors=completeColors({...preferences.colors,...s.colors}); }
+      state=s; }
   } catch {}
 }
 function colorName(t) { return state.colors[t]; }
@@ -40,12 +37,14 @@ function teamHTML(color) {
 }
 function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
 function render() {
+  $('defaults-count').textContent=`${preferences.setupTeams}-team defaults`;
   $('setup-time').textContent = formatTime(preferences.gameMs);
   $('setup-changeover').textContent = formatTime(preferences.changeMs);
   $('setup').hidden = !!state; $('board').hidden = !state;
   for(const button of document.querySelectorAll('[data-teams]')) {
-    const count=Number(button.dataset.teams), colors=colorsForTeams(count,preferences.colors);
+    const count=Number(button.dataset.teams), profile=profileFor(preferences,count), colors=colorsForTeams(count,profile.colors);
     button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
+    button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
@@ -60,6 +59,7 @@ function render() {
     $(id+'-match').setAttribute('aria-label',`${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}`);
     if(i>0) $(id+'-number').textContent=`${state.pendingTeams?'NEW CYCLE · ':''}GAME ${upcoming.game}`;
   }
+  $('session-timing').disabled=!!state.finished;
   const planned=state.pendingTeams?.teams ?? teams;
   $('add-team').disabled=planned===5;$('remove-team').disabled=planned===2;
   $('roster-count').textContent=state.pendingTeams?(teams===planned?`${teams} teams · queued`:`${teams} → ${planned} teams`):`${teams} teams`;
@@ -125,7 +125,7 @@ function tick() {
 }
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
-  preferences.setupTeams=teams;
+  selectProfile(preferences,teams);
   let ending;try{ending=resolveSessionEnd(preferences);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
   state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown};
@@ -230,26 +230,30 @@ $('settings-form').addEventListener('invalid',event=>{
   const panel=event.target.closest('[role=tabpanel]');
   if(panel)selectSettingsTab(panel.id==='settings-session-panel'?'session':'game');
 },true);
+let settingsDrafts,settingsTeam;
 function openSettings() {
   if(state)return;
-  selectSettingsTab('game');
-  const source=preferences;
-  renderColorFields(preferences.colors);
+  settingsDrafts=structuredClone(preferences.profiles);settingsTeam=preferences.setupTeams;
+  $('defaults-teams').value=settingsTeam;
+  selectSettingsTab('game');fillSettings();$('options-dialog').showModal();
+}
+function fillSettings() {
+  const source=settingsDrafts[settingsTeam];
+  renderColorFields(source.colors);
   syncColorOptions();
   $('game-minutes').value=Math.floor(source.gameMs/60000);
   $('game-seconds').value=(source.gameMs/1000)%60;
   $('change-minutes').value=Math.floor(source.changeMs/60000);
   $('change-seconds').value=(source.changeMs/1000)%60;
-  $('sounds-enabled').checked=preferences.sounds;
-  $('crowd-enabled').checked=preferences.crowd;
-  $('start-countdown-enabled').checked=preferences.startCountdown;
-  $('end-enabled').checked=preferences.endEnabled;$('end-time').value=preferences.endTime;$('end-mode').value=preferences.endMode;
-  $('min-game-minutes').value=Math.floor(preferences.minGameMs/60000);$('min-game-seconds').value=preferences.minGameMs/1000%60;
+  $('sounds-enabled').checked=source.sounds;
+  $('crowd-enabled').checked=source.crowd;
+  $('start-countdown-enabled').checked=source.startCountdown;
+  $('end-enabled').checked=source.endEnabled;$('end-time').value=source.endTime;$('end-mode').value=source.endMode;
+  $('min-game-minutes').value=Math.floor(source.minGameMs/60000);$('min-game-seconds').value=source.minGameMs/1000%60;
   syncEndFields();
   $('end-time-now').textContent=`Local time now: ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
-  for(const cue of AUDIO_CUES)$(`${cue}-enabled`).checked=preferences.audioCues[cue];
+  for(const cue of AUDIO_CUES)$(`${cue}-enabled`).checked=source.audioCues[cue];
   $('sound-status').textContent='';$('settings-error').textContent='';
-  $('options-dialog').showModal();
 }
 function syncEndFields(){
   const enabled=$('end-enabled').checked,hard=$('end-mode').value==='hard';
@@ -258,31 +262,59 @@ function syncEndFields(){
 }
 $('end-enabled').onchange=syncEndFields;$('end-mode').onchange=syncEndFields;
 $('setup-settings').onclick=openSettings;
-$('settings-form').onsubmit=event=>{
-  event.preventDefault();
-  if(state)return;
+function readSettingsDraft() {
   const colors = Object.fromEntries('ABCDE'.split('').map(t=>[t,document.querySelector(`[name="color-${t}"]`).value]));
   const gameMs = (Number($('game-minutes').value)*60+Number($('game-seconds').value))*1000;
   const changeMs=(Number($('change-minutes').value)*60+Number($('change-seconds').value))*1000;
+  if(!validColors(5,colors))throw new Error('Choose five different team colors.');
+  const target=fresh(5);
+  applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
+  const minGameMs=(Number($('min-game-minutes').value)*60+Number($('min-game-seconds').value))*1000;
+  if($('end-enabled').checked && $('end-mode').value==='hard' && (!durationOK(minGameMs)||minGameMs>gameMs)){selectSettingsTab('session');throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');}
+  const draft=settingsDrafts[settingsTeam];
+  draft.startCountdown=$('start-countdown-enabled').checked;
+  draft.endEnabled=$('end-enabled').checked;draft.endTime=$('end-time').value;draft.endMode=$('end-mode').value;
+  draft.minGameMs=durationOK(minGameMs)?minGameMs:120000;
+  draft.gameMs=gameMs;draft.changeMs=changeMs;
+  $('setup-error').textContent='';
+  draft.colors={...colors};
+  draft.sounds=$('sounds-enabled').checked;
+  draft.crowd=$('crowd-enabled').checked;
+  draft.audioCues=Object.fromEntries(AUDIO_CUES.map(cue=>[cue,$(`${cue}-enabled`).checked]));
+  return draft;
+}
+$('defaults-teams').onchange=()=>{
+  const next=Number($('defaults-teams').value);
   try {
-    if(!validColors(5,colors))throw new Error('Choose five different team colors.');
-    const target=fresh(5);
-    applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
-    const minGameMs=(Number($('min-game-minutes').value)*60+Number($('min-game-seconds').value))*1000;
-    if($('end-enabled').checked && $('end-mode').value==='hard' && (!durationOK(minGameMs)||minGameMs>gameMs)){selectSettingsTab('session');throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');}
-    preferences.startCountdown=$('start-countdown-enabled').checked;
-    preferences.endEnabled=$('end-enabled').checked;preferences.endTime=$('end-time').value;preferences.endMode=$('end-mode').value;
-    preferences.minGameMs=durationOK(minGameMs)?minGameMs:120000;
-    preferences.gameMs=gameMs;preferences.changeMs=changeMs;
-    $('setup-error').textContent='';
-    preferences.colors={...colors};
-    preferences.sounds=$('sounds-enabled').checked;
-    preferences.crowd=$('crowd-enabled').checked;
-    preferences.audioCues=Object.fromEntries(AUDIO_CUES.map(cue=>[cue,$(`${cue}-enabled`).checked]));
+    if(!$('settings-form').reportValidity())throw new Error('Check the highlighted fields before changing profiles.');
+    readSettingsDraft();settingsTeam=next;fillSettings();sounds.stop();
+  } catch(error){$('defaults-teams').value=settingsTeam;$('settings-error').textContent=error.message;}
+};
+$('settings-form').onsubmit=event=>{
+  event.preventDefault();if(state)return;
+  try {
+    readSettingsDraft();preferences.profiles=structuredClone(settingsDrafts);
+    selectProfile(preferences,settingsTeam);
     if(!preferences.sounds)sounds.stop();
-    persist(); render(); $('options-dialog').close();
-    announce('Settings saved.');
-  } catch(error) { $('settings-error').textContent=error.message; }
+    persist();render();$('options-dialog').close();announce('Team-count defaults saved.');
+  }catch(error){$('settings-error').textContent=error.message;}
+};
+$('session-timing').onclick=()=>{
+  tick();if(state.finished)return;
+  for(const [prefix,value] of [['session-game',state.gameMs],['session-change',state.changeMs]]){
+    $(prefix+'-minutes').value=Math.floor(value/60000);$(prefix+'-seconds').value=value/1000%60;
+  }
+  $('timing-error').textContent='';$('timing-dialog').showModal();
+};
+$('cancel-timing').onclick=()=>$('timing-dialog').close();
+$('timing-form').onsubmit=event=>{
+  event.preventDefault();
+  try {
+    tick();
+    const duration=prefix=>(Number($(prefix+'-minutes').value)*60+Number($(prefix+'-seconds').value))*1000;
+    updateSessionTiming(state,duration('session-game'),duration('session-change'),Date.now());
+    persist();render();$('timing-dialog').close();announce('Session timing updated. Saved defaults unchanged.');
+  }catch(error){$('timing-error').textContent=error.message;}
 };
 $('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
