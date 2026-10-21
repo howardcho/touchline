@@ -11,7 +11,7 @@ export function calloutKey(pair,role) {
 }
 export const AUDIO_FILES = Object.freeze({
   ...Object.fromEntries(TEAM_CALLOUTS.map(({key,file})=>[key,file])),
-  referee:'referee.mp3', crowd:'crowd.mp3', minute:'minute.mp3',
+  referee:'referee.mp3', crowd:'crowd.mp3', minute:'minute.mp3', thirty:'thirty.mp3', ten:'ten.mp3',
   ...Object.fromEntries([1,2,3,4,5].map(n=>[`count-${n}`,`count-${n}.mp3`]))
 });
 export const SOUND_PLANS = {
@@ -31,7 +31,11 @@ export function timerCue(before, after, now) {
   const recent = at => now >= at && now-at <= 1500;
   if (after.phase==='changeover' && (before.phase!=='changeover'||before.game!==after.game||before.segment!==after.segment)) return recent(after.deadline-changeMs) ? 'whistle' : null;
   if (after.phase==='game' && (before.phase!=='game'||before.game!==after.game||before.segment!==after.segment)) return recent(after.deadline-(after.phaseMs??gameMs)) ? 'start' : null;
-  if (after.phase==='game' && (after.phaseMs??gameMs)>60000 && before.remaining>60000 && after.remaining<=60000 && recent(after.deadline-60000)) return 'minute';
+  // Never carry a warning across a game boundary or replay stale background cues.
+  if(after.phase==='game' && before.phase==='game' && before.game===after.game && before.segment===after.segment) {
+    for(const [threshold,cue] of [[10000,'ten'],[30000,'thirty'],[60000,'minute']])
+      if((after.phaseMs??gameMs)>threshold && before.remaining>threshold && after.remaining<=threshold && recent(after.deadline-threshold))return cue;
+  }
   return null;
 }
 export function changeoverCount(before, after, now) {
@@ -129,9 +133,9 @@ export class MatchSounds {
     }
   }
   play(name,{crowd=false,crowdVolume=0.45}={}) {
-    if(name==='minute') {
-      if(this.buffers.has('minute')){this.stopSpeech();return this.recorded('minute',{group:'voice'});}
-      return this.speak('One minute remaining');
+    if(['minute','thirty','ten'].includes(name)) {
+      if(this.buffers.has(name)){this.stopSpeech();return this.recorded(name,{group:'voice'});}
+      return this.speak({minute:'One minute remaining',thirty:'Thirty seconds remaining',ten:'Ten seconds remaining'}[name]);
     }
     if(name==='crowd')return this.recorded('crowd',{volume:0.45,group:'crowd'});
     if(name==='start'){this.stopGroup('crowd');this.stopGroup('whistle');this.stopSpeech();}

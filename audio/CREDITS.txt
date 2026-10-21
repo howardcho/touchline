@@ -21,3 +21,7 @@ Team callouts: AI-generated using Runway, Mark preset (energetic announcer).
 Each complete sentence includes both team names and the matching instruction.
 All 45 distinct color pairs have an up-next and on-deck recording.
 Trimmed and normalized consistently for offline playback.
+
+30- and 10-second warnings: AI-generated using Runway, Mark preset,
+October 21, 2026. Complete lines: "Thirty seconds remaining!" and
+"Ten seconds remaining!". Bundled for offline playback.

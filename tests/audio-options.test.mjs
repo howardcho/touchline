@@ -4,7 +4,7 @@ import {AUDIO_CUES,loadPreferences,savePreferences,PREF_KEY,soundEnabled} from '
 function memory(initial={}){const data=new Map([[PREF_KEY,JSON.stringify(initial)]]);return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};}
 test('existing settings retain master mute and crowd choice while new cue toggles default on',()=>{
  const prefs=loadPreferences(memory({sounds:false,crowd:true}));
- assert.deepEqual(prefs.audioCues,{start:true,minute:true,whistle:true,countdown:true,lineup:true});
+ assert.deepEqual(prefs.audioCues,{start:true,minute:true,thirty:true,ten:true,whistle:true,countdown:true,lineup:true});
  for(const cue of [...AUDIO_CUES,'crowd'])assert.equal(soundEnabled(prefs,cue),false);
  prefs.sounds=true;assert.equal(soundEnabled(prefs,'crowd'),true);
 });
@@ -20,7 +20,7 @@ test('each cue can be independently muted and the choices survive reopening',()=
 });
 test('invalid cue preferences recover safely and unknown sounds are disabled',()=>{
  const prefs=loadPreferences(memory({audioCues:{start:false,minute:'false',whistle:null,countdown:0}}));
- assert.deepEqual(prefs.audioCues,{start:false,minute:true,whistle:true,countdown:true,lineup:true});
+ assert.deepEqual(prefs.audioCues,{start:false,minute:true,thirty:true,ten:true,whistle:true,countdown:true,lineup:true});
  assert.equal(soundEnabled(prefs,'unknown'),false);assert.equal(soundEnabled(prefs,'crowd'),true);
 });
 

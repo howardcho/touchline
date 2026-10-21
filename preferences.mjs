@@ -1,6 +1,6 @@
 import {END_MODES,validEndTime} from './session.mjs';
 import {GAME_MS, CHANGE_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
-export const AUDIO_CUES = Object.freeze(['start','minute','whistle','countdown','lineup']);
+export const AUDIO_CUES = Object.freeze(['start','minute','thirty','ten','whistle','countdown','lineup']);
 export function soundEnabled(preferences,cue) {
   if(!preferences.sounds)return false;
   if(cue==='crowd')return preferences.crowd===true;

@@ -3,3 +3,12 @@
 ._*
 .AppleDouble
 .LSOverride
+
+# Xcode local state and generated app resources
+ios/Touchline/Web/
+ios/Touchline.xcodeproj/xcuserdata/
+*.xcuserstate
+DerivedData/
+*.ipa
+*.xcarchive
+ios/com.apple.DeveloperTools/

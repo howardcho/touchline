@@ -1,11 +1,13 @@
 import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
-import {MatchSounds, timerCue, changeoverCount, lineupFor} from './sounds.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices} from './engine.mjs';
+import {createMatchSounds} from './native-audio.mjs';
+import {timerCue, changeoverCount, lineupFor} from './sounds.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
-const sounds = new MatchSounds();
+const sounds = createMatchSounds();
+const nativeHost=globalThis.webkit?.messageHandlers?.touchlineHost;
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
 wantWake=preferences.keepAwake;$('wake').checked=wantWake;
@@ -28,7 +30,7 @@ function restore() {
       s.openingGameMs=Number.isFinite(s.openingGameMs)&&s.openingGameMs>0&&s.openingGameMs<=3600000?s.openingGameMs:s.gameMs;
       s.countdownDone=typeof s.countdownDone==='boolean'?s.countdownDone:s.phase!=='countdown'&&s.phaseStarted;
       s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
-      state=s; }
+      s.clockView=s.clockView===true;state=s; }
   } catch {}
 }
 function colorName(t) { return state.colors[t]; }
@@ -37,6 +39,10 @@ function teamHTML(color) {
 }
 function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
 function render() {
+  const clockView=!!state?.clockView;
+  $('board').className=clockView?'clock-view':'';
+  $('clock-view-toggle').setAttribute('aria-pressed',String(clockView));
+  $('clock-view-toggle').textContent=clockView?'↙ Full board':'⛶ Maximize clock';
   $('defaults-count').textContent=`${preferences.setupTeams}-team defaults`;
   $('setup-time').textContent = formatTime(preferences.gameMs);
   $('setup-changeover').textContent = formatTime(preferences.changeMs);
@@ -57,6 +63,10 @@ function render() {
     $(id+'-title').textContent=upcoming.title;
     $(id+'-match').innerHTML=matchHTML(m,upcoming.colors);
     $(id+'-match').setAttribute('aria-label',`${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}`);
+    if(i>0) {
+      $(id+'-card').disabled=!!state.finished;
+      $(id+'-card').setAttribute('aria-label',`Jump to game ${upcoming.game}: ${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}. Timer resets and pauses.`);
+    }
     if(i>0) $(id+'-number').textContent=`${state.pendingTeams?'NEW CYCLE · ':''}GAME ${upcoming.game}`;
   }
   $('session-timing').disabled=!!state.finished;
@@ -86,7 +96,7 @@ function render() {
   if(state.finished){
     $('timer-status').textContent='SESSION COMPLETE';$('phase-label').textContent='FINAL WHISTLE';$('start').innerHTML='Session finished';
     $('timer-help').textContent='Return to selection to start another session.';
-    for(const id of ['start','next','previous','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
+    for(const id of ['start','next','previous','next-card','deck-card','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
     $('transition').textContent='';
     for(const id of ['next','deck']){$(id+'-match').textContent='Session complete';$(id+'-match').setAttribute('aria-label','Session complete');$(id+'-number').textContent='';}
     return;
@@ -111,7 +121,7 @@ function tick() {
   const before={...state}, now=Date.now();settle(state,now);
   const cue=timerCue(before,state,now);
   if(!state.finished)playCue(cue);
-  if(cue==='minute')announce('One minute remaining.');
+  if(['minute','thirty','ten'].includes(cue))announce({minute:'One minute remaining.',thirty:'Thirty seconds remaining.',ten:'Ten seconds remaining.'}[cue]);
   const count=changeoverCount(before,state,now);
   if(count!==null) {
     if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
@@ -185,15 +195,17 @@ for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onc
   sounds.stop();adjustTime(state,delta,Date.now());persist();render();
   announce(`${state.phase==='game'?'Game':'Changeover'} timer: ${formatTime(state.remaining)}. ${state.running?'Running':'Paused'}.`);
 };
-for(const [id,delta] of [['previous',-1],['next',1]]) $(id).onclick=async()=>{
+async function selectGame(delta,cardIndex=null) {
   sounds.stop();const ready=delta>0&&soundEnabled(preferences,'lineup')?sounds.unlock():Promise.resolve(false);
   const audioGeneration=sounds.generation;
-  move(state,delta);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,Date.now());persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
+  if(cardIndex===null)move(state,delta);else jumpToBoardGame(state,cardIndex);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,Date.now());persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
   const movedState=state,movedGame=state.game;
   if(await ready && sounds.generation===audioGeneration && state===movedState && state.game===movedGame && !state.finished && document.visibilityState==='visible'){
     const lineup=lineupFor(state,0);sounds.sayTeams(lineup.up,lineup.deck);announce(lineup.text);
   }
-};
+}
+for(const [id,delta] of [['previous',-1],['next',1]])$(id).onclick=()=>selectGame(delta);
+for(const [id,index] of [['next-card',1],['deck-card',2]])$(id).onclick=()=>selectGame(1,index);
 function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`; }
 function renderColorFields(colors) {
   $('color-fields').innerHTML = 'ABCDE'.split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
@@ -316,7 +328,15 @@ $('timing-form').onsubmit=event=>{
     persist();render();$('timing-dialog').close();announce('Session timing updated. Saved defaults unchanged.');
   }catch(error){$('timing-error').textContent=error.message;}
 };
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+function toggleClockView() {
+  if(!state)return;
+  state.clockView=!state.clockView;persist();render();$('clock-view-toggle').focus();
+}
+$('clock-view-toggle').onclick=toggleClockView;
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
+});
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
@@ -346,12 +366,14 @@ $('options-dialog').addEventListener('close',()=>sounds.stop());
 $('install-button').onclick=()=> $('install-dialog').showModal();
 async function acquireWake() {
   if(!wantWake || document.visibilityState!=='visible') return;
+  if(nativeHost){nativeHost.postMessage({keepAwake:true});$('wake-status').textContent='Active';return;}
   try {wakeLock=await navigator.wakeLock.request('screen');$('wake-status').textContent='Active';wakeLock.addEventListener('release',()=>{$('wake-status').textContent=wantWake?'Suspended':'';wakeLock=null;});}
   catch { $('wake-status').textContent='Unavailable — check display settings'; }
 }
-$('wake').onchange=async()=>{wantWake=$('wake').checked;preferences.keepAwake=wantWake;persist();if(wantWake)await acquireWake();else {await wakeLock?.release();$('wake-status').textContent='';}};
-if(!('wakeLock' in navigator)) { $('wake').disabled=true; $('wake-status').textContent='Not supported in this browser'; }
+$('wake').onchange=async()=>{wantWake=$('wake').checked;preferences.keepAwake=wantWake;persist();if(wantWake)await acquireWake();else {nativeHost?.postMessage({keepAwake:false});await wakeLock?.release();$('wake-status').textContent='';}};
+if(!nativeHost && !('wakeLock' in navigator)) { $('wake').disabled=true; $('wake-status').textContent='Not supported in this browser'; }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')sounds.stop();if(document.visibilityState==='visible'){tick();if(wantWake&&!wakeLock)acquireWake();}persist();});
 window.addEventListener('pagehide',persist);
 restore();if(state)settle(state,Date.now());persist();render();setInterval(tick,200);setInterval(()=>{if(state?.running)persist();},5000);
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if(nativeHost)$('install-button').hidden=true;
+if(!nativeHost && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});

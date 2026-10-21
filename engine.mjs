@@ -25,7 +25,8 @@ export function completeColors(partial = {}) {
     used.add(color);return [t,color];
   }));
 }
-export const GAME_MS = 240000, CHANGE_MS = 30000;
+export const GAME_MS = 240000;
+export const CHANGE_MS = 30000;
 export const matchup = (teams, game) => SCHEDULES[teams][(game - 1) % SCHEDULES[teams].length];
 export function audit(teams) {
   const s = SCHEDULES[teams], labels = 'ABCDE'.slice(0, teams).split('');
@@ -231,4 +232,18 @@ export function boardGames(state) {
       : upcomingGame(state,base+i);
     return {...next,title,match:matchup(next.teams,next.game)};
   });
+}
+
+export function jumpToBoardGame(state, cardIndex) {
+  if(![0,1,2].includes(cardIndex))throw new Error('Choose a displayed game.');
+  if(state.finished)return state;
+  const target=boardGames(state)[cardIndex];
+  const pending=state.pendingTeams;
+  if(pending && (cardIndex>0 || state.phase==='countdown' || state.phase==='changeover')) {
+    beginTeamCycle(state,pending.teams,pending.colors,false,null,state.phase!=='countdown' && state.phaseStarted);
+  }
+  // Manual selection skips any opening/changeover countdown and pauses at full time.
+  state.countdownDone=true;
+  move(state,target.game-state.game);
+  return state;
 }
