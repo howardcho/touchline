@@ -15,6 +15,7 @@ test('native audio prepares bundled recordings without a browser AudioContext',a
  assert.equal(sounds.context,null);assert.deepEqual(sounds.failedAssets,[]);
  assert.deepEqual(commands,[{action:'prepare'}]);
  assert.ok(createMatchSounds({webkit:{messageHandlers:{touchlineAudio:bridge}}}) instanceof NativeMatchSounds);
+ assert.ok(createMatchSounds({touchlineNative:{audio:bridge}}) instanceof NativeMatchSounds);
  assert.equal(createMatchSounds({}).constructor,MatchSounds);
 });
 test('native whistle and crowd retain the existing full-time timing and mix',async()=>{

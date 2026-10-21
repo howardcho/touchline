@@ -12,3 +12,14 @@ DerivedData/
 *.ipa
 *.xcarchive
 ios/com.apple.DeveloperTools/
+
+# Android local configuration, generated assets, and build output
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/build/
+android/app/src/main/assets/
+*.apk
+*.aab
+*.jks
+*.keystore

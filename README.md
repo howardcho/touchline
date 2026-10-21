@@ -133,3 +133,7 @@ The native loader compares resolved file paths to handle iPadOS's `/var` and `/p
 ### Large clock view
 
 During a session, tap **Maximize clock** above the board. The current matchup is centered directly above the large countdown. Compact cards show the next two games. The regular board also fits an iPad in portrait or landscape without scrolling, with all session controls available. The small upcoming cards remain tappable, with the same jump/reset/pause behavior as the full board. Start/pause, Restart game, and ±30-second controls stay available. Changeover and opening countdown labels still update normally. Tap **Full board** (or press Escape) to return to the full set of controls. Switching views never pauses or resets the timer. The view is remembered with the current session on refresh and Restart rotation; starting a new session returns to the full board.
+
+### Android app
+
+The `android/` project packages the same interface and recordings for Android 8.0 and later, with native audio ducking, offline loading, screen-awake support, an app icon, and Android Back handling. Open `android/` in Android Studio, connect your phone with USB debugging enabled, and click Run. See [Android build and installation instructions](android/README.md) for command-line builds and music testing. Shared interface changes apply to both native platforms after rebuilding.

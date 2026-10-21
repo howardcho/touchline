@@ -1,0 +1,4 @@
+<resources>
+    <string name="load_error">Touchline couldn’t open. Please try again.</string>
+    <string name="retry">Try again</string>
+</resources>

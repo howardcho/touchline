@@ -7,7 +7,7 @@ const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
 const sounds = createMatchSounds();
-const nativeHost=globalThis.webkit?.messageHandlers?.touchlineHost;
+const nativeHost=globalThis.touchlineNative ?? globalThis.webkit?.messageHandlers?.touchlineHost;
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
 wantWake=preferences.keepAwake;$('wake').checked=wantWake;
@@ -40,6 +40,7 @@ function teamHTML(color) {
 function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
 function render() {
   const clockView=!!state?.clockView;
+  nativeHost?.setClockView?.(clockView);
   $('board').className=clockView?'clock-view':'';
   $('clock-view-toggle').setAttribute('aria-pressed',String(clockView));
   $('clock-view-toggle').textContent=clockView?'↙ Full board':'⛶ Maximize clock';
