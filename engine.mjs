@@ -28,6 +28,7 @@ export function completeColors(partial = {}) {
 }
 export const GAME_MS = 240000;
 export const CHANGE_MS = 30000;
+export const MAX_DURATION_MS = 24*60*60*1000;
 export const matchup = (teams, game) => SCHEDULES[teams][(game - 1) % SCHEDULES[teams].length];
 const playingColors = state => [...matchup(state.teams,state.game)].map(team=>state.colors[team]);
 export function audit(teams) {
@@ -122,8 +123,8 @@ export function move(state, delta, now=null, recordCurrent=true) {
 
 export function applySettings(state, colors, gameMs, now, changeMs = state.changeMs ?? CHANGE_MS) {
   if (!validColors(state.teams, colors)) throw new Error('Choose a different color for each team.');
-  if (!Number.isInteger(gameMs) || gameMs < 1000 || gameMs > 3600000 || gameMs % 1000 !== 0) throw new Error('Choose a game time between 1 second and 60 minutes.');
-  if (!Number.isInteger(changeMs) || changeMs < 1000 || changeMs > 3600000 || changeMs % 1000 !== 0) throw new Error('Choose a changeover time between 1 second and 60 minutes.');
+  if (!Number.isInteger(gameMs) || gameMs < 1000 || gameMs > MAX_DURATION_MS || gameMs % 1000 !== 0) throw new Error('Choose a game time between 1 second and 24 hours.');
+  if (!Number.isInteger(changeMs) || changeMs < 1000 || changeMs > MAX_DURATION_MS || changeMs % 1000 !== 0) throw new Error('Choose a changeover time between 1 second and 24 hours.');
   settle(state, now);
   state.colors = {...colors};
   if (gameMs !== (state.gameMs ?? GAME_MS) || changeMs !== (state.changeMs ?? CHANGE_MS)) {
@@ -137,8 +138,8 @@ export function applySettings(state, colors, gameMs, now, changeMs = state.chang
 // New durations affect future phases without moving an active phase's deadline.
 export function updateSessionTiming(state, gameMs, changeMs, now) {
   for(const [label,value] of [['game',gameMs],['changeover',changeMs]]) {
-    if(!Number.isInteger(value)||value<1000||value>3600000||value%1000!==0)
-      throw new Error(`Choose a ${label} time between 1 second and 60 minutes.`);
+    if(!Number.isInteger(value)||value<1000||value>MAX_DURATION_MS||value%1000!==0)
+      throw new Error(`Choose a ${label} time between 1 second and 24 hours.`);
   }
   settle(state,now);
   if(state.finished)throw new Error('This session has ended. Return to selection to start another.');
@@ -155,7 +156,7 @@ export function adjustTime(state, delta, now) {
   if(delta !== 30000 && delta !== -30000) throw new Error('Time adjustments must be 30 seconds.');
   settle(state, now);
   if(state.finished)return state;
-  state.remaining = Math.max(1000, Math.min(3600000, state.remaining + delta));
+  state.remaining = Math.max(1000, Math.min(MAX_DURATION_MS, state.remaining + delta));
   const duration = state.phase==='game' ? state.gameMs : state.changeMs;
   state.phaseMs = Math.max(state.phaseMs ?? duration, state.remaining);
   if(state.endMode==='hard' && Number.isFinite(state.endAt))state.remaining=Math.min(state.remaining,Math.max(0,state.endAt-now));

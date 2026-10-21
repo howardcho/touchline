@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fresh,toggle,settle,applySettings,GAME_MS,CHANGE_MS} from '../engine.mjs';
-import {loadPreferences,savePreferences,PREF_KEY} from '../preferences.mjs';
+import {fresh,toggle,settle,applySettings,GAME_MS,CHANGE_MS,MAX_DURATION_MS} from '../engine.mjs';
+import {loadPreferences,savePreferences,PREF_KEY,durationOK} from '../preferences.mjs';
 import {timerCue,changeoverCount,SOUND_PLANS,MatchSounds} from '../sounds.mjs';
 const memory=()=>{const data=new Map();return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};};
 test('preferences retain five ordered colors, durations and mute across reload',()=>{
@@ -9,6 +9,11 @@ test('preferences retain five ordered colors, durations and mute across reload',
  prefs.colors={A:'White',B:'Blue',C:'Pink',D:'Black',E:'Yellow'};
  prefs.gameMs=90000;prefs.changeMs=45000;prefs.sounds=false;
  assert.equal(savePreferences(storage,prefs),true);assert.deepEqual(loadPreferences(storage),prefs);
+});
+test('preferences accept normalized 61-second and 61-minute timers',()=>{
+ assert.equal(durationOK(61000),true);assert.equal(durationOK(61*60000),true);assert.equal(durationOK(MAX_DURATION_MS+1000),false);
+ const storage=memory(),prefs=loadPreferences(storage);prefs.gameMs=61000;prefs.changeMs=61*60000;savePreferences(storage,prefs);
+ const restored=loadPreferences(storage);assert.equal(restored.gameMs,61000);assert.equal(restored.changeMs,61*60000);
 });
 test('malformed preferences, storage denial and old duration migrate safely',()=>{
  const storage=memory();storage.setItem('touchline-game-duration','150000');assert.equal(loadPreferences(storage).gameMs,150000);
@@ -25,7 +30,7 @@ test('custom changeover boundaries, pause and catch-up use selected duration',()
  const now=100*135000+100000;settle(a,now);for(let t=10000;t<now;t+=10000)settle(b,t);settle(b,now);assert.deepEqual(a,b);
 });
 test('invalid changeover never mutates state and editing it pauses and resets current game',()=>{
- const s=fresh(4), before=structuredClone(s);for(const time of [0,999,1001,3601000,NaN]){assert.throws(()=>applySettings(s,s.colors,s.gameMs,0,time));assert.deepEqual(s,before);}
+ const s=fresh(4), before=structuredClone(s);for(const time of [0,999,1001,MAX_DURATION_MS+1000,NaN]){assert.throws(()=>applySettings(s,s.colors,s.gameMs,0,time));assert.deepEqual(s,before);}
  toggle(s,0);settle(s,GAME_MS+5000);applySettings(s,s.colors,s.gameMs,GAME_MS+5000,45000);
  assert.equal(s.phase,'game');assert.equal(s.remaining,GAME_MS);assert.equal(s.running,false);assert.equal(s.changeMs,45000);
 });

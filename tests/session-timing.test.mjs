@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fresh,toggle,settle,move,restartGame,updateSessionTiming} from '../engine.mjs';
+import {MAX_DURATION_MS,fresh,toggle,settle,move,restartGame,updateSessionTiming} from '../engine.mjs';
 import {loadPreferences,savePreferences,profileFor,selectProfile,PREF_KEY} from '../preferences.mjs';
 import {timerCue} from '../sounds.mjs';
 const memory=()=>{const data=new Map();return {getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value)};};
@@ -34,7 +34,7 @@ test('new timing respects a hard cutoff and full-games-only admission',()=>{
 });
 test('duration edits validate before mutation and settle overdue phases before applying',()=>{
  const s=fresh(2);toggle(s,0);const snapshot=structuredClone(s);
- for(const bad of [0,1001,3601000,NaN])assert.throws(()=>updateSessionTiming(s,bad,30000,1000));
+ for(const bad of [0,1001,MAX_DURATION_MS+1000,NaN])assert.throws(()=>updateSessionTiming(s,bad,30000,1000));
  assert.throws(()=>updateSessionTiming(s,60000,0,1000));assert.deepEqual(s,snapshot);
  updateSessionTiming(s,60000,10000,245000);assert.equal(s.phase,'changeover');assert.equal(s.remaining,25000);
  settle(s,270000);assert.equal(s.remaining,60000);

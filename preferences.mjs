@@ -1,5 +1,5 @@
 import {END_MODES,validEndTime} from './session.mjs';
-import {GAME_MS, CHANGE_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
+import {GAME_MS, CHANGE_MS, MAX_DURATION_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
 export const AUDIO_CUES = Object.freeze(['start','minute','thirty','ten','whistle','countdown','lineup']);
 export function soundEnabled(preferences,cue) {
   if(!preferences.sounds)return false;
@@ -7,7 +7,7 @@ export function soundEnabled(preferences,cue) {
   return AUDIO_CUES.includes(cue) && preferences.audioCues?.[cue]!==false;
 }
 export const PREF_KEY = 'touchline-preferences-v1';
-export const durationOK = value => Number.isInteger(value) && value >= 1000 && value <= 3600000 && value % 1000 === 0;
+export const durationOK = value => Number.isInteger(value) && value >= 1000 && value <= MAX_DURATION_MS && value % 1000 === 0;
 function normalize(raw, legacy) {
   const setupTeams=TEAM_COUNTS.includes(raw.setupTeams) ? raw.setupTeams : 4;
   const older=raw.colorsByTeams?.[setupTeams] || raw.colorsByTeams?.[5] || {};

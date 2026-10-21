@@ -3,7 +3,7 @@ import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile,
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, MAX_DURATION_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
@@ -22,13 +22,13 @@ function persist() {
 function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
-    if(s) s.gameMs = Number.isInteger(s.gameMs) && s.gameMs>=1000 && s.gameMs<=3600000 && s.gameMs%1000===0 ? s.gameMs : GAME_MS;
-    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover','countdown'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && (s.remaining>0 || (s.finished===true && s.remaining===0)) && s.remaining<=3600000 && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,(Number.isFinite(s.phaseMs)&&s.phaseMs>0&&s.phaseMs<=3600000)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
+    if(s) s.gameMs = durationOK(s.gameMs) ? s.gameMs : GAME_MS;
+    if(s && TEAM_COUNTS.includes(s.teams) && Number.isSafeInteger(s.game) && s.game>0 && ['game','changeover','countdown'].includes(s.phase) && typeof s.running==='boolean' && Number.isFinite(s.remaining) && (s.remaining>0 || (s.finished===true && s.remaining===0)) && s.remaining<=MAX_DURATION_MS && (!s.running || Number.isFinite(s.deadline))) { s.colors = validColors(s.teams, s.colors) ? s.colors : colorsForTeams(s.teams,preferences.colors); s.phaseMs=Math.max(s.remaining,(Number.isFinite(s.phaseMs)&&s.phaseMs>0&&s.phaseMs<=MAX_DURATION_MS)?s.phaseMs:(s.phase==='game'?s.gameMs:s.changeMs)); s.phaseStarted=typeof s.phaseStarted==='boolean'?s.phaseStarted:(s.running||s.remaining<s.gameMs); if(s.pendingTeams && (!TEAM_COUNTS.includes(s.pendingTeams.teams) || !validColors(s.pendingTeams.teams,s.pendingTeams.colors))) delete s.pendingTeams;
       s.teamHistory=Array.isArray(s.teamHistory)?s.teamHistory.filter(h=>TEAM_COUNTS.includes(h.teams)&&Number.isSafeInteger(h.lastGame)&&h.lastGame>0&&validColors(h.teams,h.colors)):[];
       s.segment=Number.isSafeInteger(s.segment)&&s.segment>0?s.segment:1;
       if(!Number.isFinite(s.endAt) || !END_MODES.includes(s.endMode)){delete s.endAt;delete s.endMode;}
       s.startCountdown=typeof s.startCountdown==='boolean'?s.startCountdown:preferences.startCountdown;
-      s.openingGameMs=Number.isFinite(s.openingGameMs)&&s.openingGameMs>0&&s.openingGameMs<=3600000?s.openingGameMs:s.gameMs;
+      s.openingGameMs=Number.isFinite(s.openingGameMs)&&s.openingGameMs>0&&s.openingGameMs<=MAX_DURATION_MS?s.openingGameMs:s.gameMs;
       s.countdownDone=typeof s.countdownDone==='boolean'?s.countdownDone:s.phase!=='countdown'&&s.phaseStarted;
       s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
       s.clockView=s.clockView===true;state=s; }
@@ -91,7 +91,7 @@ function render() {
   $('progress-fill').style.width=`${Math.max(0,Math.min(100,remaining/(state.phaseMs ?? (changing?changeMs:gameMs))*100))}%`;
   $('previous').disabled=game===1;
   $('subtract-time').disabled=opening||remaining<=1000;
-  $('add-time').disabled=opening||remaining>=3600000;
+  $('add-time').disabled=opening||remaining>=MAX_DURATION_MS;
   $('loop-note').textContent=`Loop ${Math.floor((main.game-1)/SCHEDULES[main.teams].length)+1} · Game ${(main.game-1)%SCHEDULES[main.teams].length+1} of ${SCHEDULES[main.teams].length}`;
   const shared=consecutiveColors(state);
   $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';

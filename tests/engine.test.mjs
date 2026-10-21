@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SCHEDULES,COLORS,assignColors,applySettings,audit,fresh,settle,toggle,move,matchup,GAME_MS,CHANGE_MS} from '../engine.mjs';
+import {SCHEDULES,COLORS,assignColors,applySettings,audit,fresh,settle,toggle,move,matchup,GAME_MS,CHANGE_MS,MAX_DURATION_MS} from '../engine.mjs';
 test('exact supplied schedules',()=>{
 assert.equal(SCHEDULES[4].join(' '),'AB CD AC BD AD BC');
 assert.equal(SCHEDULES[5].join(' '),'AB CD AE BD CE AD BE AC DE BC AE BD AC BE CD AB DE BC AD CE');
@@ -32,8 +32,12 @@ test('custom duration covers boundaries, navigation and background catch-up',()=
   }
 });
 test('settings reject duplicates, invalid palette entries and invalid durations without changes',()=>{
-  for(const duration of [0,500,1001,3601000,NaN]){const s=fresh(5), saved=structuredClone(s);assert.throws(()=>applySettings(s,s.colors,duration,0));assert.deepEqual(s,saved);}
+  for(const duration of [0,500,1001,MAX_DURATION_MS+1000,NaN]){const s=fresh(5), saved=structuredClone(s);assert.throws(()=>applySettings(s,s.colors,duration,0));assert.deepEqual(s,saved);}
   for(const colors of [{A:'Red',B:'Red',C:'Green',D:'Black'},{A:'<script>',B:'Blue',C:'Green',D:'Black'}]){const s=fresh(4);assert.throws(()=>applySettings(s,colors,GAME_MS,0));}
+});
+test('overflowing seconds and minutes are valid normalized durations',()=>{
+  const seconds=fresh(4);applySettings(seconds,seconds.colors,61000,0,61000);assert.equal(seconds.gameMs,61000);assert.equal(seconds.changeMs,61000);
+  const minutes=fresh(4);applySettings(minutes,minutes.colors,61*60000,0,61*60000);assert.equal(minutes.gameMs,3660000);assert.equal(minutes.changeMs,3660000);
 });
 test('color-only edits preserve active timer; duration edit resets current game and pauses',()=>{
  const s=fresh(4), colors={A:'Orange',B:'White',C:'Purple',D:'Yellow'};
