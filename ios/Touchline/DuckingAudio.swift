@@ -11,6 +11,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
     private var pending: [UUID: Pending] = [:]
     private var releaseTask: DispatchWorkItem?
     private var sessionActive = false
+    private var primedUntil = Date.distantPast
     private var interruptionObserver: NSObjectProtocol?
 
     override init() {
@@ -23,6 +24,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
         case "prepare":
             if clips.isEmpty { try loadClips() }
             return clips.mapValues(\.duration)
+        case "prime": try prime()
         case "play":
             guard let name = command["name"] as? String, let clip = clips[name],
                   let group = command["group"] as? String, ["voice", "whistle", "crowd", "effect"].contains(group),
@@ -69,10 +71,17 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    private func prime() throws {
+        try activate()
+        primedUntil = Date().addingTimeInterval(1)
+        releaseIfIdle()
+    }
+
     private func schedule(_ clip: Clip, group: String, delay: TimeInterval, duration: TimeInterval, volume: Float) throws {
         // Prepare now to report missing/invalid audio through the bridge before scheduling it.
         let player = try AVAudioPlayer(contentsOf: clip.url)
         player.volume = volume; player.delegate = self
+        let lead = Date() < primedUntil ? 0 : Self.duckLead
         try activate()
         let id = UUID()
         let task = DispatchWorkItem { [weak self] in
@@ -91,7 +100,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
             }
         }
         pending[id] = Pending(group: group, task: task)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay + Self.duckLead, execute: task)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + lead, execute: task)
     }
 
     private func enqueue(after delay: TimeInterval, group: String, work: @escaping () -> Void) {
@@ -141,6 +150,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
 
     func stop() {
         releaseTask?.cancel(); releaseTask = nil
+        primedUntil = .distantPast
         pending.values.forEach { $0.task.cancel() }; pending.removeAll()
         players.values.forEach { $0.stop() }; players.removeAll(); groups.removeAll()
         deactivate()

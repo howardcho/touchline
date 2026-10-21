@@ -9,6 +9,7 @@ import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import org.json.JSONObject;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ final class DuckingAudio {
     private volatile Map<String,Clip> clips = Collections.emptyMap();
     private final Map<UUID,Entry> entries = new HashMap<>();
     private boolean focused;
+    private long primedUntil;
     private final Runnable release = this::abandonFocus;
 
     DuckingAudio(Context context,Consumer<String> onError) {
@@ -85,6 +87,7 @@ final class DuckingAudio {
     void handle(JSONObject command) throws Exception {
         String action=command.getString("action");
         switch(action) {
+            case "prime": prime();break;
             case "play":
                 Clip clip=clips.get(command.getString("name"));
                 String group=command.getString("group");
@@ -106,15 +109,24 @@ final class DuckingAudio {
     }
     private static boolean inRange(double n,double min,double max){return Double.isFinite(n)&&n>=min&&n<=max;}
 
+    private void acquireFocus() {
+        if(focused)return;
+        if(manager.requestAudioFocus(focusRequest)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            throw new IllegalStateException("Audio focus unavailable. Close other voice or call apps and try again.");
+        focused=true;
+        android.util.Log.d("Touchline","Audio focus acquired (transient may duck)");
+    }
+    private void prime() {
+        handler.removeCallbacks(release);acquireFocus();
+        primedUntil=SystemClock.uptimeMillis()+1000;
+        handler.postDelayed(release,1100);
+    }
+
     private void schedule(Clip clip,String group,double delay,double duration,float volume) {
         UUID id=UUID.randomUUID();Entry entry=new Entry(group);
+        long lead=SystemClock.uptimeMillis()<primedUntil?0:DUCK_LEAD_MS;
         handler.removeCallbacks(release);
-        if(!focused) {
-            if(manager.requestAudioFocus(focusRequest)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-                throw new IllegalStateException("Audio focus unavailable. Close other voice or call apps and try again.");
-            focused=true;
-            android.util.Log.d("Touchline","Audio focus acquired (transient may duck)");
-        }
+        acquireFocus();
         entry.start=()->{
             if(!entries.containsKey(id))return;
             try {
@@ -135,7 +147,7 @@ final class DuckingAudio {
                 onError.accept(error.getMessage()==null?"Unable to play this audio cue.":error.getMessage());finish(id);
             }
         };
-        entries.put(id,entry);handler.postDelayed(entry.start,Math.round(delay*1000)+DUCK_LEAD_MS);
+        entries.put(id,entry);handler.postDelayed(entry.start,Math.round(delay*1000)+lead);
     }
     private void remove(UUID id) {
         Entry entry=entries.remove(id);if(entry==null)return;
@@ -152,6 +164,7 @@ final class DuckingAudio {
     }
     void stop() {
         handler.removeCallbacks(release);
+        primedUntil=0;
         for(UUID id:new ArrayList<>(entries.keySet()))remove(id);
         abandonFocus();
     }

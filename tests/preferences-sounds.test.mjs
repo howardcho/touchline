@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fresh,toggle,settle,applySettings,GAME_MS,CHANGE_MS,MAX_DURATION_MS} from '../engine.mjs';
 import {loadPreferences,savePreferences,PREF_KEY,durationOK} from '../preferences.mjs';
-import {timerCue,changeoverCount,SOUND_PLANS,MatchSounds} from '../sounds.mjs';
+import {timerCue,timerLeadCue,changeoverCount,SOUND_PLANS,MatchSounds} from '../sounds.mjs';
 const memory=()=>{const data=new Map();return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};};
 test('preferences retain five ordered colors, durations and mute across reload',()=>{
  const storage=memory(), prefs=loadPreferences(storage);
@@ -38,6 +38,13 @@ test('one-minute announcement triggers only on crossing one minute and never rep
  const s=fresh(5);toggle(s,0);settle(s,179800);let before={...s};settle(s,180000);assert.equal(timerCue(before,s,180000),'minute');
  before={...s};settle(s,180200);assert.equal(timerCue(before,s,180200),null);
  const short=fresh(4,undefined,60000);toggle(short,0);let old={...short};settle(short,200);assert.equal(timerCue(old,short,200),null);
+});
+test('predictable cues prime ducking half a second early and pausing cancels the lead',()=>{
+ const warning=fresh(5);toggle(warning,0);settle(warning,179400);let before={...warning};settle(warning,179600);
+ assert.equal(timerLeadCue(before,warning),'minute');before={...warning};settle(warning,179800);assert.equal(timerLeadCue(before,warning),null);
+ before={...warning};settle(warning,180000);assert.equal(timerCue(before,warning,180000),'minute');
+ const paused={...warning};toggle(paused,180000);before={...paused};settle(paused,180200);assert.equal(timerLeadCue(before,paused),null);
+ const ending=fresh(4);toggle(ending,0);settle(ending,ending.gameMs-600);before={...ending};settle(ending,ending.gameMs-400);assert.equal(timerLeadCue(before,ending),'whistle');
 });
 test('full-time whistle, automatic kickoff whistle and background suppression',()=>{
  const s=fresh(5);toggle(s,0);let before={...s};settle(s,GAME_MS);assert.equal(timerCue(before,s,GAME_MS),'whistle');

@@ -41,6 +41,12 @@ test('native bridge failure does not start browser audio',async()=>{
  const sounds=new NativeMatchSounds({postMessage:async()=>{throw new Error('unavailable');}});
  assert.equal(await sounds.unlock(),false);assert.equal(sounds.context,null);
 });
+test('native pre-duck can be canceled before its queued cue plays',async()=>{
+ const {sounds,commands}=fixture();await sounds.unlock();
+ assert.equal(sounds.prime(),true);sounds.stop();
+ const actions=commands.slice(1).map(({action})=>action);
+ assert.equal(actions[0],'prime');assert.equal(actions.at(-1),'stop');assert.ok(actions.indexOf('prime')<actions.indexOf('stop'));
+});
 test('offline packaged UI boots with native audio and preserves shared settings/session separation',()=>{
  execFileSync('python3',['ios/prepare_web.py'],{cwd:new URL('..',import.meta.url)});
  const elements=new Map(),stored=new Map(),element=id=>{

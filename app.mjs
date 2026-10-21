@@ -1,7 +1,7 @@
 import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
-import {timerCue, changeoverCount, lineupFor} from './sounds.mjs';
+import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
 import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, MAX_DURATION_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
 const $ = id => document.getElementById(id);
@@ -122,9 +122,15 @@ function playCue(cue) {
     const lineup=lineupFor(state);sounds.sayTeams(lineup.up,lineup.deck,{delay:soundEnabled(preferences,'whistle')?3.55:0});announce(lineup.text);
   }
 }
+function cueAudible(cue) {
+  if(cue==='whistle')return soundEnabled(preferences,'whistle')||soundEnabled(preferences,'crowd')||soundEnabled(preferences,'lineup');
+  return soundEnabled(preferences,cue);
+}
 function tick() {
   if(!state || state.finished || (!state.running && !Number.isFinite(state.endAt))) return;
   const before={...state}, now=Date.now();settle(state,now);
+  const leadCue=timerLeadCue(before,state);
+  if(leadCue && cueAudible(leadCue) && document.visibilityState==='visible')sounds.prime();
   const cue=timerCue(before,state,now);
   if(!state.finished)playCue(cue);
   if(['minute','thirty','ten'].includes(cue))announce({minute:'One minute remaining.',thirty:'Thirty seconds remaining.',ten:'Ten seconds remaining.'}[cue]);

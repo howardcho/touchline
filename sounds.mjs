@@ -38,6 +38,20 @@ export function timerCue(before, after, now) {
   }
   return null;
 }
+export function timerLeadCue(before, after, lead=500) {
+  if(!before.running || !after.running || before.phase!==after.phase || before.game!==after.game || before.segment!==after.segment)return null;
+  const crossed=threshold=>before.remaining>threshold+lead && after.remaining<=threshold+lead && after.remaining>threshold;
+  if(after.phase==='game') {
+    for(const [threshold,cue] of [[60000,'minute'],[30000,'thirty'],[10000,'ten']])
+      if((after.phaseMs??after.gameMs)>threshold && crossed(threshold))return cue;
+    if(crossed(0))return 'whistle';
+  }
+  if(['changeover','countdown'].includes(after.phase)) {
+    for(let n=5;n>=1;n--)if(crossed(n*1000))return 'countdown';
+    if(crossed(0))return 'start';
+  }
+  return null;
+}
 export function changeoverCount(before, after, now) {
   if(!before.running || !after.running || !['changeover','countdown'].includes(after.phase)) return null;
   const n=Math.ceil(after.remaining/1000);
@@ -72,6 +86,7 @@ export class MatchSounds {
     }));
     return this.loadPromise;
   }
+  prime() { return false; }
   stopGroup(group) {
     for(const [node,label] of this.groups)if(label===group){
       try{node.stop();}catch{}this.active.delete(node);this.groups.delete(node);

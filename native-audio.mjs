@@ -24,6 +24,7 @@ export class NativeMatchSounds extends MatchSounds {
     if(!this.buffers.has(name))return false;
     return this.send({action:'play',name,at,duration:duration??this.buffers.get(name).duration,volume,group});
   }
+  prime() {return this.send({action:'prime'});}
   stopGroup(group) {this.send({action:'stopGroup',group});}
   stopSpeech() {this.stopGroup('voice');}
   stop() {super.stop();this.send({action:'stop'});}

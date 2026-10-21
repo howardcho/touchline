@@ -1,6 +1,6 @@
 # Touchline on iPad: development installation
 
-This native iPad host reuses Touchline's web interface, timers, team settings, and bundled recordings. Audio plays through Apple's native audio session with `duckOthers`, lowering music from another app 0.5 seconds before Touchline cues and restoring it afterward. The public website showcases the native apps; the browser/PWA version is retired.
+This native iPad host reuses Touchline's web interface, timers, team settings, and bundled recordings. Audio plays through Apple's native audio session with `duckOthers`, lowering music from another app 0.5 seconds before predictable Touchline cues while keeping the recording aligned with its timer threshold. Pausing during the lead-in cancels the cue and restores other audio. The public website showcases the native apps; the browser/PWA version is retired.
 
 Requires a Mac with Xcode and an iPad running iPadOS 17 or newer. No App Store submission is required for a development installation.
 
