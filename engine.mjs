@@ -1,4 +1,5 @@
 import {settleSession,prepareSessionGame,canStartGame,finishSession} from './session.mjs';
+import {beginSessionTracking,registerSessionTeams,beginGameTracking,accrueGameTracking,pauseGameTracking,completeGameTracking,discardGameTracking} from './stats.mjs';
 export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
   2: ['AB'],
@@ -28,6 +29,7 @@ export function completeColors(partial = {}) {
 export const GAME_MS = 240000;
 export const CHANGE_MS = 30000;
 export const matchup = (teams, game) => SCHEDULES[teams][(game - 1) % SCHEDULES[teams].length];
+const playingColors = state => [...matchup(state.teams,state.game)].map(team=>state.colors[team]);
 export function audit(teams) {
   const s = SCHEDULES[teams], labels = 'ABCDE'.slice(0, teams).split('');
   const counts = Object.fromEntries(labels.map(t => [t, s.filter(m => m.includes(t)).length]));
@@ -54,41 +56,29 @@ export function settle(state, now) {
     state.countdownDone=true;delete state.openingGameMs;
     if(!prepareSessionGame(state,kickoff))return state;
     state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.remaining;
+    beginGameTracking(state,kickoff,playingColors(state));
   }
   return settleSession(state,now,settleRotation);
 }
 function settleRotation(state, now) {
   if (!state.running) return state;
-  // A roster change begins at the next kickoff, after the old game's changeover.
-  if(state.pendingTeams && state.deadline<=now) {
-    if(state.phase==='game') {
-      state.phase='changeover';state.phaseStarted=true;
-      state.phaseMs=state.changeMs;state.deadline+=state.changeMs;
-    }
-    if(state.deadline<=now) {
-      const kickoff=state.deadline, pending=state.pendingTeams;
-      beginTeamCycle(state,pending.teams,pending.colors,true,kickoff);
-    }
-  }
   const gameMs = state.gameMs ?? GAME_MS, changeMs = state.changeMs ?? CHANGE_MS;
-  let left = state.deadline - now;
-  if (left <= 0) {
-    if (state.phase === 'changeover') { state.game++; state.phase = 'game'; left += gameMs; }
-    else { state.phase = 'changeover'; left += changeMs; }
-    if (left <= 0) {
-      const cycles = Math.floor(-left / (gameMs + changeMs));
-      state.game += cycles;
-      left += cycles * (gameMs + changeMs);
-      while (left <= 0) {
-        if (state.phase === 'game') { state.phase = 'changeover'; left += changeMs; }
-        else { state.phase = 'game'; state.game++; left += gameMs; }
-      }
+  if(state.phase==='game' && !state.currentGameStat)beginGameTracking(state,state.deadline-(state.phaseMs??gameMs),playingColors(state));
+  while (state.deadline <= now) {
+    const boundary=state.deadline;
+    if (state.phase === 'game') {
+      completeGameTracking(state,boundary);
+      state.phase='changeover';state.phaseStarted=true;state.phaseMs=changeMs;state.deadline=boundary+changeMs;
+    } else if(state.pendingTeams) {
+      const pending=state.pendingTeams;
+      beginTeamCycle(state,pending.teams,pending.colors,true,boundary);
+    } else {
+      state.game++;state.phase='game';state.phaseStarted=true;state.phaseMs=gameMs;state.deadline=boundary+gameMs;
+      beginGameTracking(state,boundary,playingColors(state));
     }
-    state.deadline = now + left;
-    state.phaseStarted = true;
-    state.phaseMs = state.phase==='game' ? gameMs : changeMs;
   }
-  state.remaining = left;
+  if(state.phase==='game')accrueGameTracking(state,now);
+  state.remaining = state.deadline-now;
   return state;
 }
 export function toggle(state, now) {
@@ -100,13 +90,24 @@ export function toggle(state, now) {
   } else if(!state.running && state.phase==='countdown'){
     if(!canStartGame(state,now+state.remaining,state.openingGameMs??state.gameMs))return finishSession(state,now,now>=state.endAt?'end-time':'insufficient-time');
   } else if(!state.running && !prepareSessionGame(state,now))return state;
+  const wasRunning=state.running;
   state.running = !state.running;
   if(state.running && state.phase==='game') state.phaseStarted=true;
   state.deadline = state.running ? now + state.remaining : null;
+  if(state.running && !wasRunning) {
+    beginSessionTracking(state,now);
+    registerSessionTeams(state,Object.values(state.colors));
+    if(state.phase==='game')beginGameTracking(state,now,playingColors(state));
+  } else if(!state.running && wasRunning && state.phase==='game')pauseGameTracking(state,now);
   return state;
 }
-export function move(state, delta) {
+export function move(state, delta, now=null, recordCurrent=true) {
   if(state.finished)return state;
+  if(state.phase==='game') {
+    if(Number.isFinite(now))accrueGameTracking(state,now);
+    if(recordCurrent)completeGameTracking(state,Number.isFinite(now)?now:(state.currentGameStat?.activeSince??0));
+    else discardGameTracking(state);
+  }
   if(delta>0 && state.pendingTeams) {
     const pending=state.pendingTeams;
     beginTeamCycle(state,pending.teams,pending.colors,false,null,true);
@@ -148,7 +149,7 @@ export function updateSessionTiming(state, gameMs, changeMs, now) {
 }
 
 // Reset the current matchup, including from its changeover, without advancing it.
-export function restartGame(state) { return move(state, 0); }
+export function restartGame(state) { return move(state, 0, null, false); }
 export function adjustTime(state, delta, now) {
   if(state.finished || state.phase==='countdown')return state;
   if(delta !== 30000 && delta !== -30000) throw new Error('Time adjustments must be 30 seconds.');
@@ -171,7 +172,8 @@ export function beginTeamCycle(state, teams, colors, running=false, kickoff=null
   const next=fresh(teams,colors,state.gameMs,state.changeMs);
   delete state.pendingTeams;
   Object.assign(state,next,{teamHistory:history,segment,sessionRoster:true});
-  if(running){state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;}
+  registerSessionTeams(state,Object.values(colors));
+  if(running){state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;beginGameTracking(state,kickoff,playingColors(state));}
   return state;
 }
 export function changeTeamRoster(state, action, color, now) {
@@ -234,7 +236,7 @@ export function boardGames(state) {
   });
 }
 
-export function jumpToBoardGame(state, cardIndex) {
+export function jumpToBoardGame(state, cardIndex, now=null) {
   if(![0,1,2].includes(cardIndex))throw new Error('Choose a displayed game.');
   if(state.finished)return state;
   const target=boardGames(state)[cardIndex];
@@ -244,6 +246,12 @@ export function jumpToBoardGame(state, cardIndex) {
   }
   // Manual selection skips any opening/changeover countdown and pauses at full time.
   state.countdownDone=true;
-  move(state,target.game-state.game);
+  move(state,target.game-state.game,now);
+  return state;
+}
+
+export function endSession(state, now) {
+  settle(state,now);
+  if(!state.finished)finishSession(state,now,'manual');
   return state;
 }

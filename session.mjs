@@ -1,3 +1,5 @@
+import {finishSessionTracking} from './stats.mjs';
+
 export const END_MODES = ['hard','soft','full'];
 export const validEndTime = value => typeof value==='string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 export function resolveSessionEnd(preferences, now=Date.now()) {
@@ -9,6 +11,7 @@ export function resolveSessionEnd(preferences, now=Date.now()) {
   return {endAt:end.getTime(),endMode:preferences.endMode,minGameMs:Math.min(preferences.minGameMs,preferences.gameMs)};
 }
 export function finishSession(state, at, reason='end-time') {
+  finishSessionTracking(state,at);
   state.finished=true;state.finishedAt=at;state.finishReason=reason;
   state.running=false;state.deadline=null;state.remaining=0;
   delete state.pendingTeams;

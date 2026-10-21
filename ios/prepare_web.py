@@ -5,7 +5,7 @@ import re, shutil, sys
 root=Path(__file__).resolve().parent.parent
 out=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else root/'ios/Touchline/Web'
 out.mkdir(parents=True,exist_ok=True)
-modules=['session','engine','preferences','sounds','native-audio','app']
+modules=['stats','session','engine','preferences','sounds','native-audio','app']
 parts=['(()=>{const modules={};const load=name=>modules[name];']
 for name in modules:
     source=(root/f'{name}.mjs').read_text()

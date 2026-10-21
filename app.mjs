@@ -2,7 +2,8 @@ import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, changeoverCount, lineupFor} from './sounds.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices} from './engine.mjs';
+import {summarizeSession} from './stats.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
@@ -95,6 +96,8 @@ function render() {
   const shared=consecutiveColors(state);
   $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';
   if(state.finished){
+    $('end-session').textContent='View summary';
+    $('end-session-clock').textContent='View summary';
     $('timer-status').textContent='SESSION COMPLETE';$('phase-label').textContent='FINAL WHISTLE';$('start').innerHTML='Session finished';
     $('timer-help').textContent='Return to selection to start another session.';
     for(const id of ['start','next','previous','next-card','deck-card','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
@@ -102,6 +105,8 @@ function render() {
     for(const id of ['next','deck']){$(id+'-match').textContent='Session complete';$(id+'-match').setAttribute('aria-label','Session complete');$(id+'-number').textContent='';}
     return;
   }
+  $('end-session').textContent='End session';
+  $('end-session-clock').textContent='End session';
   $('start').disabled=preparingStart;$('next').disabled=false;$('restart-game').disabled=false;
   if(preparingStart)$('start').textContent='Preparing audio…';
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
@@ -128,7 +133,7 @@ function tick() {
     if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
     announce(`${count}. Next game starts soon.`);
   }
-  if(!before.finished && state.finished){sounds.stop();playCue(cue);announce('Session complete.');persist();render();return;}
+  if(!before.finished && state.finished){sounds.stop();playCue(cue);announce('Session complete.');persist();render();openSessionSummary();return;}
   if(before.game!==state.game || before.phase!==state.phase || before.segment!==state.segment) {
     announce(state.phase==='changeover'?`Game ${state.game} finished. Changeover: ${formatTime(state.changeMs)}.`:`Game ${state.game}. ${[...matchup(state.teams,state.game)].map(colorName).join(' versus ')}.`);persist();
   }
@@ -199,7 +204,7 @@ for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onc
 async function selectGame(delta,cardIndex=null) {
   sounds.stop();const ready=delta>0&&soundEnabled(preferences,'lineup')?sounds.unlock():Promise.resolve(false);
   const audioGeneration=sounds.generation;
-  if(cardIndex===null)move(state,delta);else jumpToBoardGame(state,cardIndex);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,Date.now());persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
+  const now=Date.now();if(cardIndex===null)move(state,delta,now);else jumpToBoardGame(state,cardIndex,now);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,now);persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
   const movedState=state,movedGame=state.game;
   if(await ready && sounds.generation===audioGeneration && state===movedState && state.game===movedGame && !state.finished && document.visibilityState==='visible'){
     const lineup=lineupFor(state,0);sounds.sayTeams(lineup.up,lineup.deck);announce(lineup.text);
@@ -334,6 +339,30 @@ function toggleClockView() {
   state.clockView=!state.clockView;persist();render();$('clock-view-toggle').focus();
 }
 $('clock-view-toggle').onclick=toggleClockView;
+function summaryTime(ms) {
+  const seconds=Math.max(0,Math.round(ms/1000)),hours=Math.floor(seconds/3600),minutes=Math.floor(seconds%3600/60),rest=seconds%60;
+  return hours?`${hours}h ${minutes}m ${rest}s`:minutes?`${minutes}m ${rest}s`:`${rest}s`;
+}
+function openSessionSummary() {
+  const summary=summarizeSession(state);
+  $('summary-total-time').textContent=summaryTime(summary.totalSessionMs);
+  $('summary-average-time').textContent=summaryTime(summary.averagePlayingMs);
+  $('summary-games').textContent=String(summary.totalGames);
+  const rows=summary.teams.map(team=>{
+    const row=document.createElement('div');row.className='summary-row';row.setAttribute('role','row');
+    const name=document.createElement('span');name.setAttribute('role','cell');const color=document.createElement('i');color.className='summary-color';color.dataset.color=team.color;name.append(color,team.color);
+    const games=document.createElement('strong');games.setAttribute('role','cell');games.textContent=team.games;
+    const time=document.createElement('strong');time.setAttribute('role','cell');time.textContent=summaryTime(team.playingMs);row.append(name,games,time);return row;
+  });
+  $('summary-team-rows').replaceChildren(...rows);
+  $('summary-empty').hidden=summary.teams.length>0;
+  if(!$('session-summary-dialog').open)$('session-summary-dialog').showModal();
+}
+const requestSessionEnd=()=>state.finished?openSessionSummary():$('end-session-dialog').showModal();
+$('end-session').onclick=requestSessionEnd;$('end-session-clock').onclick=requestSessionEnd;
+$('cancel-end-session').onclick=()=>$('end-session-dialog').close();
+$('confirm-end-session').onclick=()=>{sounds.stop();endSession(state,Date.now());persist();render();$('end-session-dialog').close();openSessionSummary();announce('Session complete.');};
+$('summary-back-to-selection').onclick=()=>{$('session-summary-dialog').close();backToSelection();};
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
 });

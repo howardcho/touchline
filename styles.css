@@ -137,6 +137,25 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  #board:not(.clock-view) .transition:empty{display:none}
 }
 
+/* End-of-session report. */
+.end-session,#end-session-clock{border-color:#b77a6d;color:#8a382c}#end-session-clock{display:none}
+.dialog-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:12px;margin-top:24px}
+.dialog-actions .primary{min-height:48px;padding:12px}
+.danger-action{background:#a84636;color:#fff}.danger-action:hover{background:#8e3528}
+.summary-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:24px 0}
+.summary-metrics>div{background:#e5eadb;border-radius:12px;padding:14px}
+.summary-metrics span{display:block;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#64715f;line-height:1.4}
+.summary-metrics strong{display:block;margin-top:7px;font-size:21px}
+.summary-table{border-top:1px solid var(--line)}
+.summary-row{display:grid;grid-template-columns:1.4fr .6fr 1fr;align-items:center;gap:10px;min-height:48px;border-bottom:1px solid var(--line);font-size:14px}
+.summary-row>span:first-child{display:flex;align-items:center;gap:9px}.summary-row>:not(:first-child){text-align:right}
+.summary-heading{min-height:38px;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#687568}
+.summary-color{display:inline-block;width:18px;height:18px;border-radius:4px;background:var(--team-color);border:1px solid #183b3030}
+.summary-table+.dialog-note{text-align:center}
+@media(max-width:540px){.summary-metrics{grid-template-columns:1fr}.summary-metrics>div{display:flex;align-items:center;justify-content:space-between}.summary-metrics strong{margin:0;font-size:18px}.navigation{flex-wrap:wrap}.navigation .end-session{flex-basis:100%}}
+.clock-view .board-actions>:not(#clock-view-toggle):not(#end-session-clock){display:none}
+.clock-view .board-actions #end-session-clock{display:block;width:auto;min-height:44px;padding:9px 16px;font-size:13px;color:#ffd6cd;border-color:#b77a6d}
+
 /* Phone selection keeps all four choices close together. */
 @media(max-width:649px){
  .setup{margin:24px auto}.setup h1{font-size:52px;letter-spacing:-2px;margin:16px 0}.intro{font-size:15px;line-height:1.5}
