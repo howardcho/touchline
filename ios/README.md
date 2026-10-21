@@ -1,6 +1,6 @@
 # Touchline on iPad: development installation
 
-This native iPad host reuses Touchline's web interface, timers, team settings, and bundled recordings. Audio plays through Apple's native audio session with `duckOthers`, so music from another app can become quieter during Touchline cues and return afterward. The web/PWA version remains available and does not gain cross-app ducking.
+This native iPad host reuses Touchline's web interface, timers, team settings, and bundled recordings. Audio plays through Apple's native audio session with `duckOthers`, so music from another app can become quieter during Touchline cues and return afterward. The public website showcases the native apps; the browser/PWA version is retired.
 
 Requires a Mac with Xcode and an iPad running iPadOS 17 or newer. No App Store submission is required for a development installation.
 
@@ -31,7 +31,7 @@ Ducking depth is controlled by iPadOS, not a percentage slider. Native settings 
 
 ## Project details and verification
 
-No third-party framework or package installation is needed. Xcode's first build phase runs `prepare_web.py`, packages the shared JavaScript into a classic script for local WKWebView loading, and copies the web assets/recordings. Generated `Touchline/Web/` resources are ignored by Git and rebuilt from the repository. To prepare them manually after a fresh clone, run `python3 ios/prepare_web.py` from the repository root before opening Xcode.
+No third-party framework or package installation is needed. Xcode's first build phase runs `prepare_web.py`, packages the shared JavaScript into a classic script for local WKWebView loading, and copies the web assets/recordings. Generated `Touchline/Web/` resources are ignored by Git and rebuilt from the repository, using `native/index.html` as its interface. To prepare them manually after a fresh clone, run `python3 ios/prepare_web.py` from the repository root before opening Xcode.
 
 `npm test` covers the shared app plus the native bridge's command timing, cancellation, bundled-recording metadata, and offline UI packaging. The full iOS device build and development signing succeeded on October 21, 2026. Touchline was installed and launched on the connected iPad mini (A17 Pro), and its process remained running. The native page-loading path check was subsequently corrected for iPadOS container-path aliases. The selection screen, matchup-card jumps, and both new warning previews were checked in an iPad mini simulator; device diagnostics confirmed the corrected selection page loaded on the physical iPad. Actual Spotify/Bluetooth ducking still needs a listening test.
 

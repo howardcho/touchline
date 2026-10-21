@@ -1,139 +1,58 @@
-# Touchline — Soccer Rotation
+# Aged Athletics / Touchline
 
-A dependency-free, iPad-friendly web app for the sideline. All team schedules and session data live on the device. No analytics, external fonts, or backend database.
+Aged Athletics is the single-page public site at **agedathletics.com**. It showcases Touchline, the native soccer rotation app for **iPad and Android**. The former public browser/PWA app is retired.
 
-## Use on an iPad
+## Install Touchline
 
-1. After deploying the source to an HTTPS host, open its URL in Safari. A private hosted copy may ask you to sign in.
-2. Tap **Share → Add to Home Screen → Add**. Enable **Open as Web App** if offered. See [Apple’s iPad instructions](https://support.apple.com/guide/ipad/ipad8f1f7a29/ipados).
-3. Open Touchline from the Home Screen while online once so its offline assets can finish caching. Choose **Two teams**, **Three teams**, **Four teams**, or **Five teams**. Use **Settings**, beside Continuous rotation at the bottom of the selection screen, to edit game time, changeover time, sounds, and colors before starting. Choose **Defaults for → 2, 3, 4, or 5 teams** to customize each team count independently. Each profile has its own colors, game and changeover times, opening countdown, audio options, and end-time settings. Existing settings seed all four profiles when upgrading. Save defaults, then choose a team card to begin; each card shows its own colors and timing. Settings always contain five unique colors in a fixed order. Two-team sessions use colors 1–2, three-team sessions use colors 1–3, and so on. No colors are shuffled. The first colors in that team-count profile match the session’s initial team order. Older saved colors migrate while preserving the active teams, with unused colors filled in to complete the five slots. All five colors must be unique, even if fewer teams are playing. Colors used in another dropdown are disabled; changing a color makes the previous choice available again.
-4. The timer is optional: use **Next game** to run the rotation manually. To use the timer, tap **Start session**. By default, a separate five-second countdown runs before game one, followed by its full game time. Disable **Settings → Game → Start session with a 5-second countdown** to begin immediately. The opening countdown supports pause/resume and remains separate from game and changeover durations. Games default to four minutes (editable in Settings), followed automatically by a changeover (default 30 seconds, also editable). At the end of the changeover, the next game starts automatically. Team matchups show prominent colored flags with readable color names. During changeover, the main card becomes **UP NEXT** and shows the game about to start. The side cards show the following two games as **ON DECK** and **AFTER THAT**. At kickoff, those same matchups stay visible while the titles become **NOW PLAYING**, **UP NEXT**, and **ON DECK**. The initial countdown uses the same waiting titles for games 1–3. With sounds enabled, a single long whistle signals kickoff, a voice says “one minute remaining” when a game crosses one minute remaining, voices say “thirty seconds remaining” and “ten seconds remaining” at those thresholds, and three slower whistles signal full time (0.4-second blast, 0.45-second gap, 0.45-second blast, 0.45-second gap, then a 1.6-second blast). Changeovers count down aloud from 5 to 1, then the next game begins with the long whistle. Resume does not sound the kickoff whistle, and games of one minute or less skip the one-minute announcement.
-5. **Restart game** resets only the current matchup to the full configured game duration (for example, 05:00 for a five-minute game) and pauses it until you tap Start game. It keeps the game number and teams, even during changeover. **−30 sec / +30 sec** adjust the active game or changeover by 30 seconds while preserving its running/paused status. Remaining time is clamped between 1 second and 60 minutes; shortening below 30 seconds leaves 1 second rather than automatically skipping a phase. The five-second opening countdown cannot be extended or shortened with these buttons. Adjustments apply only to the current timer, persist on refresh, and do not change your saved durations for future games.
-6. **Pause/Resume** freezes and resumes the current phase. **Next/Previous game** selects a game, resets its timer to the selected game duration, and pauses. Previous is disabled at game 1; future games loop forever.
-7. **Back to selection** is available directly above the game board. Tapping the Touchline logo also returns to team selection and ends the current rotation. It ends the current rotation and returns to the splash page, keeping your saved settings. Choosing a team count starts again at game 1.
-8. **Restart rotation** on the game board returns to game 1 with a paused timer, keeping colors and both durations. **Restart game** resets only the current matchup. Saved defaults are available on the selection screen. During play, **Session timing** changes game and changeover durations without exiting. It applies only to this session and keeps the active game or changeover’s remaining time and running/paused status unchanged. The next phase uses the new duration; an unstarted game updates immediately. The opening five-second countdown stays five seconds. Use Restart game to apply the new full duration to the current teams. Session timing survives refresh with the current session, but never overwrites saved defaults. Adding or removing teams during a session retains its current timing and audio settings; it does not load another profile.
-9. **Settings → Save defaults** lets you choose unique team colors from Red, Blue, Green, Black, Yellow, Orange, Purple, Pink, White, and Gray. Set game and changeover durations with minutes and seconds (each 1 second to 60 minutes). The changes apply to the next rotation you start. The new duration applies to subsequent games in new sessions started with that team count. Other team-count defaults stay independent. Settings use three compact tabs: **Game** for colors and both timers, **Session** for an optional end time, and **Audio** for sounds. Edits stay in place when switching tabs; **Save defaults** saves all tabs and any edited team-count profiles together. Switching profiles retains unsaved edits until you save or close the dialog. Each sound has its own checkbox and compact **Test** button: kickoff whistle, 1 minute warning, 30 second warning, 10 second warning, full-time whistle, 5-to-1 countdown, team callouts, and stadium crowd. Checkboxes control sounds during play; Test previews work regardless of the checkboxes. **Enable timer sounds** mutes all game audio while keeping your individual choices. All sound options, including stadium crowd, default on for a fresh installation. All choices save on this device. Closing without saving discards edits.
-10. **Keep screen awake** requests a screen wake lock when supported. It defaults on when supported, and your on/off choice is saved locally. Its status shows whether it is active, suspended, or unavailable. The browser or operating system may release it for battery or visibility reasons. See [MDN’s API documentation](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API).
+- **Android:** open `android/` in Android Studio, connect a phone with USB debugging enabled, and Run. See [Android installation and build instructions](android/README.md).
+- **iPad:** open `ios/Touchline.xcodeproj` in Xcode, select your signing team and connected iPad, and Run. See [iPad installation instructions](ios/README.md). Free Apple development signing expires after seven days.
 
-Portrait and landscape are supported. The app saves progress on this device and restores it after refresh or reopening, subject to browser storage availability. Running timers use elapsed wall-clock time, so reopening after a background interval catches up to the appropriate game and phase. Pause before leaving if you want play to stop. Manually changing the device clock can affect an active timer. Sounds and continued background execution are not guaranteed by iPadOS. Keep the app visible during play.
+Both apps bundle the interface and all audio for offline use. Native audio ducks other music during cues; Android Spotify ducking has been confirmed on Pixel. Neither app is listed in a public app store yet.
 
-Offline operation and wake lock require HTTPS (or localhost on the same device). Offline caching is implemented with a service worker; browser storage eviction or private hosting authentication may require connecting again. Physical iPad installation, offline relaunch, and wake lock should be checked on your device before a session.
+## What Touchline does
 
-## Add or remove teams during a session
+- Repeating rotations for two to five teams, with unique, ordered team colors.
+- Large now-playing, up-next, and on-deck matchups; tappable upcoming games.
+- Optional game/changeover timers, a five-second opening countdown, pause/resume, restart, and ±30-second controls.
+- Full-screen match clock; portrait and landscape layouts.
+- Referee whistles, spoken warnings, team callouts, and optional stadium crowd.
+- Saved defaults for each team count, plus session-only timing and roster changes.
+- Optional session end time with hard stop, finish-last-game, or full-games-only rules.
 
-Use **+ Team / − Team** on the board (minimum 2, maximum 5). Each button opens a color picker. Add lets you choose any unused color from the palette (saved colors appear first). Remove lists only the currently selected session teams that have not already been queued for removal; it never lists unused defaults or a not-yet-active arrival. Use Cancel change to discard a queued arrival. Remaining teams keep their colors and relative order. Added colors are session-only: they survive refresh and Restart rotation, but never overwrite the saved five-color defaults. Returning to selection and choosing a new session restores those defaults. The caption shows the current or queued roster. You can queue several changes or cancel them.
+See the [app behavior and schedule guide](native/USER_GUIDE.md) and [audio credits](audio/CREDITS.txt). Complete rotations give equal game counts; two-, three-, and four-team schedules include consecutive appearances, while the five-team loop avoids them.
 
-If the current game has started, changes apply at the next kickoff, after its changeover. NOW PLAYING stays on the current teams; UP NEXT and ON DECK preview the fresh cycle. With manual timing, **Next game** applies the change and leaves the new game paused. Before the first kickoff, a change applies immediately, paused. Restart game retains a queued change; Restart rotation cancels it.
+## Public website
 
-The new count begins at game 1 of its fixed schedule. Equal games are guaranteed over a complete cycle from that point onward; late arrivals never catch up on earlier games. A count-change boundary can have consecutive appearances, which the board flags. Earlier count segments are retained under **View rotation & fairness → Earlier team counts**, recording the last game reached, not an audited record of actual minutes played. Pending changes and history survive refresh. Returning to selection or restarting the whole rotation clears that session history.
+Only **`docs/`** is deployed. GitHub Pages must use **Deploy from a branch → main → /docs**. Do not publish the repository root: it contains the native app's shared implementation.
 
-## Saved preferences and sound
+The site is plain HTML/CSS with screenshots, native installation links, and expandable FAQs. No runtime dependencies, analytics, public browser app, or store download badges. `docs/CNAME` sets `agedathletics.com`; GoDaddy DNS must point the domain at GitHub Pages. See [domain setup](docs/DOMAIN-SETUP.md).
 
-The app uses `localStorage`, rather than cookies, to keep game duration, changeover duration, sound and crowd preferences, and team colors on this browser and website. Defaults are stored separately for 2-, 3-, 4-, and 5-team sessions and survive refresh and normal browser reopening. Keep screen awake is a shared device preference. Current game, timer progress, and session-only timing overrides are stored separately for refresh recovery. Ending a session and selecting teams again restores that team count’s saved defaults. Clearing website data, private browsing, or browser storage eviction can remove them. Settings do not transfer between devices or between the GitHub Pages address and a custom domain. If storage is blocked, the app displays a message and keeps settings for the current page only. Older saved sessions migrate to a 30-second changeover.
-
-Whistles use a real soccer referee recording. The one-minute warning and countdown use bundled AI-generated sports-announcer clips. All recordings are cached for offline use after the first online load; no API key or external service is needed during play. An optional generated stadium roar, with a distant, muffled TV-broadcast sound, begins after the three full-time blasts (or immediately at full time if that whistle is disabled) and stops for the countdown or kickoff so speech stays clear. Enable it in Settings; the choice is saved locally and the timer sound switch controls it too. If a recording fails to load, whistles fall back to synthesized audio and speech falls back to an installed device voice (or a short tone). The preview reports incomplete audio loading. [Audio credits and licenses](audio/CREDITS.txt) include attribution for the referee recording and generation details.
-
-Changeovers shorter than five seconds begin with the remaining number. Missed countdown numbers are skipped rather than spoken late. Tap Start/Resume or a sound test to enable audio after opening the app. A countdown preview runs 5 to 1, then plays the kickoff whistle. Keep the app visible and check device volume; iPadOS may suspend audio while the app is hidden or the device is locked. Overdue cues are skipped when returning after a long background interval. Sound previews work even when the saved sound toggle is off. The announcer and stadium crowd are AI-generated.
-
-## Session end time and team callouts
-
-In **Settings → Session**, choose an end time for today (using the iPad’s local clock). The time and finish preference are remembered; each new rotation resolves that time for the current day. Past times must be updated before starting. For a fresh installation, all optional switches are enabled: the opening countdown, timer sounds and individual audio cues, screen wake preference, and session end time (initially 23:59 today). Explicit saved off choices are preserved on updates. With the end-time option off, rotations continue indefinitely.
-
-- **Hard stop:** ends at the selected time. A shortened final game is allowed only if its available duration at kickoff meets **Minimum shortened game** (default two minutes, configurable in minutes and seconds). Otherwise that game is skipped. A paused session still ends at the fixed cutoff; pauses may reduce actual playing time below the kickoff minimum.
-- **Finish last game:** no kickoff at or after the end time; a game begun before it is allowed to finish, including after a pause.
-- **Full games only:** only start games that can fit completely, including the preceding changeover. The session stops after the last qualifying game, without an unnecessary final changeover. If a game is subsequently paused or extended, it can finish even if that pushes it past the cutoff.
-
-The board shows the finish policy and a **Session complete** state, which remains complete after refresh. Restart rotation retains the same end-time limit; return to selection to choose a new session. End-time enforcement also applies in manual mode, but automatic game sequencing requires starting the optional timer. Time adjustments cannot extend a hard cutoff.
-
-In **Settings → Audio**, **Team callouts** announces the teams about to play and the following matchup after each game, using the actual colors, including queued roster changes. Example: “Team Red and team Blue, you’re up! Team Purple and team Black, you’re on deck!” Higher-energy announcer recordings are bundled offline. Each team pairing and its “you’re up” or “you’re on deck” instruction is recorded as one complete sentence, so names and instructions share the same delivery without word-by-word joins. The full-time whistle plays first when enabled; crowd volume is reduced beneath the callout. Countdown and kickoff take priority and cancel unfinished callouts, especially with short changeovers. No teams are announced for a session’s final game. Pause, navigation, and returning to selection cancel pending speech. Manual **Next game** calls out the newly selected matchup and the following game; Previous stays quiet. Use **Test** beside Team callouts to preview the example. The master sound switch and the individual callout checkbox control it independently.
-
-## Run the source locally
-
-Requires Python 3 for serving; Node.js 18+ only for automated tests. No package installation or build is needed.
-
-From this folder:
+Preview the website:
 
 ```sh
-python3 -m http.server 8080
+npm start
 ```
 
-Open http://localhost:8080 in a browser. You can also run `npm start` if Node is installed.
+Open http://localhost:8080. Website edits do not change installed native apps.
 
-For an iPad on the same Wi-Fi, bind the server to your computer's network interface (the command above does this by default) and open `http://YOUR-COMPUTER-LAN-IP:8080`. The computer firewall must permit the connection. This HTTP preview supports the board and timer; use an HTTPS host for full offline and wake-lock features. `localhost` on the iPad refers to the iPad itself.
+## Shared native app source
 
-## Deploy independently
+- `native/index.html`: app structure and dialogs, packaged only into the native apps.
+- Root `.mjs` files and `styles.css`: shared schedules, timers, rendering, settings, and native audio adapter.
+- `audio/`: 100 bundled recordings and credits.
+- `ios/`: native iPad host and audio ducking.
+- `android/`: native Android host, audio focus, screen wake, and immersive mode.
+- `docs/`: public Aged Athletics website and screenshot assets.
+- `tests/`: shared app and native packaging checks.
 
-This repository serves the app directly from its root. For GitHub Pages, choose Settings → Pages → Deploy from a branch → main → /(root). You can also upload the app files to any HTTPS static host. No build command, secrets, APIs, or server framework are needed. The app uses relative paths and works in a subdirectory. Serve `.mjs` files as JavaScript and `manifest.webmanifest` as a web manifest or JSON. Use `index.html` as the entry point.
+The native build scripts package `native/index.html` as the bundled `index.html`. Shared code remains separate from the marketing page. Rebuild and reinstall iPad/Android apps after modifying their shared source. Native app settings do not transfer to the website or across devices.
 
-After editing assets for a new release, increment the `CACHE` version in `sw.js`. Close old app windows and reopen to activate the newly cached version. The supplied source has no runtime dependencies.
-
-## Exact schedules and validation
-
-**2 teams:** AB repeats. Both teams play every game and rest during changeovers.
-
-**3 teams:** AB, AC, BC repeats. Each team plays twice per loop, each pairing appears once, and the maximum rest is one game. Every transition shares one team, including the loop boundary.
-
-
-Letters below identify internal schedule slots. The app displays their ordered color names and color markers throughout the board, rotation list, and transition warnings.
-
-**4 teams, 6 games:** AB, CD, AC, BD, AD, BC.
-
-- Every team plays 3 games / 12 minutes per cycle.
-- Every one of the 6 pairings occurs once.
-- Maximum rest is 2 consecutive games (A's maximum is 1).
-- **Consecutive appearances exist:** Team C at 2→3, D at 4→5, and B at 6→1 (the loop boundary).
-- With four teams, the only pairing disjoint from AB is CD, and vice versa. Zero consecutive appearances therefore forces repeating the same complementary pairings. Covering all six pairings requires some consecutive appearances. The app preserves the requested schedule and flags the upcoming conflict.
-
-**5 teams, 20 games:** AB, CD, AE, BD, CE, AD, BE, AC, DE, BC, AE, BD, AC, BE, CD, AB, DE, BC, AD, CE.
-
-- Every team plays 8 games / 32 minutes per cycle.
-- All 10 pairings occur exactly twice.
-- No consecutive appearances, including game 20→1.
-- No team rests more than 2 consecutive games, including across the boundary.
-
-Balance is guaranteed over a complete cycle; stopping partway through a cycle may leave unequal play counts.
-
-## Verification
+## Verify
 
 ```sh
 npm test
-# Or, without npm:
-node --test tests/*.test.mjs
+python3 ios/prepare_web.py
+python3 android/prepare_web.py
 ```
 
-Automated tests cover exact schedules, matchup frequency, appearances, maximum cyclic rest, consecutive appearances, indefinite looping, timer phase boundaries, pause/resume in both phases, navigation resets, recovery after long background intervals, persistent, ordered team colors, custom game durations, settings validation, stored preferences, independent team-count profiles and migration, session-only duration edits with current-phase preservation, hard-stop constraints after timing edits, custom changeover boundaries, audio cue timing, the kickoff and full-time whistle patterns, the spoken one-minute announcement, countdown timing, current-game restart, timer adjustments, queued team-count changes, selected arrivals and departures, new-cycle fairness, and count-change history. UI checks cover selecting teams, starting, pausing/resuming, navigation, persistence, restart, changing teams, fairness view, and portrait/landscape layouts in the desktop browser. Physical iPad behaviors remain device-dependent.
-
-## Files
-
-- `index.html`: accessible app structure and dialogs
-- `styles.css`: responsive layout, touch targets, colors
-- `engine.mjs`: schedules, validation, timer state transitions
-- `app.mjs`: controls, rendering, local persistence, tones, wake lock
-- `preferences.mjs`: persistent device preferences and validation
-- `sounds.mjs`: recorded sound playback, fallback audio, and cue timing
-- `audio/`: bundled whistle, crowd, generated voice clips, and credits
-- `sw.js`: offline app-shell cache
-- `manifest.webmanifest`, icons: Home Screen installation
-- `tests/engine.test.mjs`: automated schedule and timer tests
-
-Set game duration in Settings on the selection screen. `GAME_MS` in `engine.mjs` is the four-minute default; `CHANGE_MS` is the 30-second changeover default. Per-cycle minute totals in the app use the selected game duration; the schedule examples above use the four-minute default.
-
-## Native iPad app with audio ducking
-
-The `ios/Touchline.xcodeproj` project packages the same interface and recordings into a native iPad app. Native audio playback asks iPadOS to lower other apps' music during Touchline cues and restores it afterward. The website continues to use browser audio. See [iPad installation and audio test instructions](ios/README.md). The native app has been built, signed, installed, and launched on an iPad mini (A17 Pro). On-device Spotify/audio-output ducking still needs a listening test.
-
-### Quick game selection and late-game warnings
-
-Tap either upcoming matchup card to jump directly to the game shown. The app resets that game's full timer and pauses it; tap Start game when ready. During changeover, the side cards select the games actually displayed, and queued team changes carry over correctly. The opening countdown is skipped after a manual jump. Finished-session cards are disabled.
-
-The 30- and 10-second spoken warnings default on and can be toggled or previewed separately under Settings → Audio for each team-count profile. They play only when a running game crosses the threshold; a game starting with exactly that amount of time does not immediately announce it. Changeovers and stale background crossings stay quiet. Both recordings use the existing Mark announcer voice and work offline in the browser and native app.
-
-The native loader compares resolved file paths to handle iPadOS's `/var` and `/private/var` aliases. Loading errors show a Retry button instead of leaving a blank view. The corrected app's page load and game-card jumps have also been checked visually in an iPad mini simulator.
-
-### Large clock view
-
-During a session, tap **Maximize clock** above the board. The current matchup is centered directly above the large countdown. Compact cards show the next two games. The regular board also fits an iPad in portrait or landscape without scrolling, with all session controls available. The small upcoming cards remain tappable, with the same jump/reset/pause behavior as the full board. Start/pause, Restart game, and ±30-second controls stay available. Changeover and opening countdown labels still update normally. Tap **Full board** (or press Escape) to return to the full set of controls. Switching views never pauses or resets the timer. The view is remembered with the current session on refresh and Restart rotation; starting a new session returns to the full board.
-
-### Android app
-
-The `android/` project packages the same interface and recordings for Android 8.0 and later, with native audio ducking, offline loading, screen-awake support, an app icon, and Android Back handling. Open `android/` in Android Studio, connect your phone with USB debugging enabled, and click Run. See [Android build and installation instructions](android/README.md) for command-line builds and music testing. Shared interface changes apply to both native platforms after rebuilding.
+No JavaScript dependencies need installing. Python 3 and Node.js are needed for packaging/tests; Xcode or Android Studio builds the corresponding app. Keep signing keys, local SDK paths, generated assets, and build output out of Git.

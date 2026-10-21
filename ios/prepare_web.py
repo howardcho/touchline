@@ -17,7 +17,7 @@ for name in modules:
     parts.append(f'modules["{name}"]=(()=>{{\n{source}\nreturn {{{",".join(exports)}}};\n}})();')
 parts.append('})();')
 (out/'touchline.js').write_text('\n'.join(parts))
-html=(root/'index.html').read_text().replace('<script type="module" src="app.mjs"></script>','<script src="touchline.js"></script>')
+html=(root/'native/index.html').read_text().replace('<script type="module" src="app.mjs"></script>','<script src="touchline.js"></script>')
 (out/'index.html').write_text(html)
 for file in ['styles.css','icon.svg','manifest.webmanifest','apple-touch-icon.png','icon-192.png','icon-512.png']:
     shutil.copy2(root/file,out/file)

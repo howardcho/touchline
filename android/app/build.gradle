@@ -23,7 +23,7 @@ tasks.register('prepareWeb', Exec) {
     commandLine 'python3', 'android/prepare_web.py'
     inputs.files(fileTree('../..') {
         include '*.mjs', '*.html', '*.css', '*.png', '*.svg', '*.webmanifest', 'audio/**',
-                'ios/prepare_web.py', 'android/prepare_web.py', 'android/host.js'
+                'native/index.html', 'ios/prepare_web.py', 'android/prepare_web.py', 'android/host.js'
     })
     outputs.dir 'src/main/assets'
 }
