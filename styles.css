@@ -85,7 +85,24 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 .clock-view #start{grid-column:1;grid-row:3;justify-self:end;min-height:48px;padding:10px;width:min(100%,220px);font-size:16px}.clock-view .timer-controls{grid-column:2;grid-row:3;margin:0;width:min(100%,340px);gap:8px}.clock-view .timer-control{min-height:48px;font-size:12px}.clock-view .timer-help{display:none}
 .clock-view .queue{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto;gap:16px;min-height:0}.clock-view .queue-card{background:#264b3c;color:#f8f9ee;border:1px solid #526e5b;border-radius:14px;padding:12px 16px;min-height:92px;gap:8px}.clock-view .queue-card .eyebrow{color:var(--lime);font-size:10px;letter-spacing:1.4px}.clock-view .queue-card .card-top>span:last-child{color:#c0cebb;font-size:10px}.clock-view .queue-card .matchup{padding:0;gap:12px}.clock-view .queue-card .team-flag{width:30px;height:25px}.clock-view .queue-card .versus{font-size:13px}.clock-view .queue-card p{display:none}.clock-view .queue-card:hover:not(:disabled){background:#315c47;box-shadow:inset 0 0 0 1px #a6b996}
 @media(max-width:540px){#board.clock-view{padding-left:14px;padding-right:14px;padding-bottom:14px}.clock-view>.board-top::before{font-size:9px;letter-spacing:1px}.clock-view .now-card{gap:8px}.clock-view .now-card>.card-top{gap:8px;flex-wrap:wrap}.clock-view .now-card .eyebrow{font-size:9px;letter-spacing:1px}.clock-view .current-game-clock>.matchup{gap:5px}.clock-view .now-card .team-letter{font-size:12px;flex-direction:column;gap:2px}.clock-view .now-card .team-flag{width:28px;height:24px}.clock-view .queue{gap:8px}.clock-view .queue-card{padding:10px;min-height:100px}.clock-view .queue-card .team-letter{flex-direction:column;font-size:12px}.clock-view .queue-card .card-top{gap:4px}.clock-view .queue-card .eyebrow{font-size:9px;letter-spacing:.5px}.clock-view .queue-card .card-top>span:last-child{font-size:9px}.clock-view .timer-controls{gap:4px}.clock-view .timer-control{font-size:10px}.clock-view .timer-top{font-size:9px;letter-spacing:.5px}}
-@media(max-height:500px) and (min-width:541px){#board.clock-view{grid-template-rows:44px minmax(0,1fr);padding-top:6px;padding-bottom:10px;gap:4px}.clock-view .game-layout{gap:8px}.clock-view .queue-card{min-height:72px;padding:8px 12px}.clock-view #timer{font-size:min(29vw,24dvh)}.clock-view .current-game-clock>.matchup{margin:4px 0 0}.clock-view .now-card .team-letter{font-size:14px}.clock-view .now-card .team-flag{width:28px;height:24px}.clock-view .timer-top{font-size:9px;letter-spacing:.5px}.clock-view .progress{margin-top:4px}.clock-view .now-card{gap:4px 12px}}
+@media(max-height:500px) and (min-width:541px){
+ #board.clock-view{grid-template-rows:44px minmax(0,1fr);padding-top:6px;padding-bottom:8px;gap:4px}
+ .clock-view .game-layout{grid-template-rows:minmax(0,1fr) 68px;gap:6px}
+ .clock-view .now-card{grid-template-rows:26px minmax(0,1fr) 44px;gap:2px 12px}
+ .clock-view .current-game-clock{display:grid;grid-template-columns:clamp(150px,22vw,290px) minmax(0,1fr);grid-template-rows:24px minmax(0,1fr) 8px;column-gap:18px;align-items:center;text-align:center}
+ .clock-view .current-game-clock>.matchup{grid-column:1;grid-row:1/4;align-self:stretch;flex-direction:column;justify-content:center;gap:7px;margin:0;padding-right:18px;border-right:1px solid #496356}
+ .clock-view .timer-top{grid-column:2;grid-row:1;order:initial;font-size:9px;letter-spacing:.8px;padding:0}
+ .clock-view #timer{grid-column:2;grid-row:2;order:initial;align-self:center;font-size:min(28vw,52dvh);line-height:.88;letter-spacing:-.055em}
+ .clock-view .progress{grid-column:2;grid-row:3;order:initial;margin:0;height:4px}
+ .clock-view .now-card .team-letter{font-size:clamp(18px,2.2vw,30px);gap:8px}
+ .clock-view .now-card .team-flag{width:44px;height:35px}
+ .clock-view .now-card .versus{font-size:11px}
+ .clock-view #start{min-height:44px;padding:7px;font-size:14px}
+ .clock-view .timer-controls{height:44px}.clock-view .timer-control{min-height:44px;padding:5px}
+ .clock-view .queue{gap:8px}.clock-view .queue-card{min-height:68px;padding:7px 12px;display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:12px}
+ .clock-view .queue-card .card-top{display:block}.clock-view .queue-card .card-top>span{display:block}.clock-view .queue-card .card-top>span:last-child{margin-top:5px}
+ .clock-view .queue-card .matchup{padding:0;justify-content:flex-end}.clock-view .queue-card .team-letter{font-size:14px}.clock-view .queue-card .team-flag{width:27px;height:22px}
+}
 
 /* Fit the full board within an iPad viewport while retaining 44px touch targets. */
 @media(min-width:650px) and (min-height:600px){
