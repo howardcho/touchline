@@ -2,6 +2,7 @@ import AVFoundation
 
 // Only activate during cues, then release the session so music returns to normal.
 final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
+    private static let duckLead: TimeInterval = 0.5
     private struct Clip { let url: URL; let duration: TimeInterval }
     private struct Pending { let group: String; let task: DispatchWorkItem }
     private var clips: [String: Clip] = [:]
@@ -72,12 +73,12 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
         // Prepare now to report missing/invalid audio through the bridge before scheduling it.
         let player = try AVAudioPlayer(contentsOf: clip.url)
         player.volume = volume; player.delegate = self
+        try activate()
         let id = UUID()
         let task = DispatchWorkItem { [weak self] in
             guard let self, self.pending[id] != nil else { return }
             self.pending.removeValue(forKey: id)
             do {
-                try self.activate()
                 player.prepareToPlay()
                 self.players[id] = player; self.groups[id] = group
                 guard player.play() else { throw AudioError.playbackFailed }
@@ -90,7 +91,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
             }
         }
         pending[id] = Pending(group: group, task: task)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: task)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + Self.duckLead, execute: task)
     }
 
     private func enqueue(after delay: TimeInterval, group: String, work: @escaping () -> Void) {

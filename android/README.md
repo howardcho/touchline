@@ -40,7 +40,7 @@ Use `adb -s SERIAL ...` if more than one device is attached. The development APK
 
 ## Music and audio ducking
 
-The native player requests `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` immediately before a cue, plays the bundled recording, and abandons focus after the final cue and a 1.1-second gap. This keeps music reduced through closely spaced countdown/whistle/callout clips. It cancels queued audio and releases focus when Touchline leaves the foreground or loses audio focus. Android 15+ requires Touchline to be visible for these focus requests; there is no background service.
+The native player requests `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` 0.5 seconds before a cue, plays the bundled recording, and abandons focus after the final cue and a 1.1-second gap. This gives important announcements a clear lead-in and keeps music reduced through closely spaced countdown/whistle/callout clips. It cancels queued audio and releases focus when Touchline leaves the foreground or loses audio focus. Android 15+ requires Touchline to be visible for these focus requests; there is no background service.
 
 Music apps decide how they respond to audio focus. Most music playback can duck; spoken-word apps or calls can pause or deny focus instead. Test with your actual music app and Bluetooth speaker. Touchline does not change the system media volume.
 

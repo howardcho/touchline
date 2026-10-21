@@ -21,6 +21,7 @@ import java.util.function.Consumer;
 
 /** Transient focus ducks other media only during cues and short gaps between them. */
 final class DuckingAudio {
+    private static final long DUCK_LEAD_MS = 500;
     private static final class Clip {
         final String file; final double duration;
         Clip(String file,double duration){this.file=file;this.duration=duration;}
@@ -108,15 +109,15 @@ final class DuckingAudio {
     private void schedule(Clip clip,String group,double delay,double duration,float volume) {
         UUID id=UUID.randomUUID();Entry entry=new Entry(group);
         handler.removeCallbacks(release);
+        if(!focused) {
+            if(manager.requestAudioFocus(focusRequest)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+                throw new IllegalStateException("Audio focus unavailable. Close other voice or call apps and try again.");
+            focused=true;
+            android.util.Log.d("Touchline","Audio focus acquired (transient may duck)");
+        }
         entry.start=()->{
             if(!entries.containsKey(id))return;
             try {
-                if(!focused) {
-                    if(manager.requestAudioFocus(focusRequest)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-                        throw new IllegalStateException("Audio focus unavailable. Close other voice or call apps and try again.");
-                    focused=true;
-                    android.util.Log.d("Touchline","Audio focus acquired (transient may duck)");
-                }
                 MediaPlayer player=new MediaPlayer();entry.player=player;
                 player.setAudioAttributes(attributes);
                 try(AssetFileDescriptor descriptor=context.getAssets().openFd(clip.file)) {
@@ -134,7 +135,7 @@ final class DuckingAudio {
                 onError.accept(error.getMessage()==null?"Unable to play this audio cue.":error.getMessage());finish(id);
             }
         };
-        entries.put(id,entry);handler.postDelayed(entry.start,Math.round(delay*1000));
+        entries.put(id,entry);handler.postDelayed(entry.start,Math.round(delay*1000)+DUCK_LEAD_MS);
     }
     private void remove(UUID id) {
         Entry entry=entries.remove(id);if(entry==null)return;
