@@ -288,7 +288,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  .clock-view .now-card>.card-top{grid-column:1/-1;grid-row:1}
  .clock-view .current-game-clock>.matchup{grid-column:1/-1;grid-row:2}
  .clock-view .queue{grid-column:1/-1;grid-row:3;grid-template-columns:1fr 1fr;grid-template-rows:1fr;gap:8px}
- .clock-view #timer{grid-column:1/-1;grid-row:4;font-size:clamp(100px,39vw,190px)}
+ .clock-view #timer{grid-column:1/-1;grid-row:4;width:100%;max-width:100%;font-size:clamp(96px,34vw,165px);letter-spacing:-.065em;text-align:center;overflow:hidden}
  .clock-view .progress{grid-column:1/-1;grid-row:5}
  .clock-view #start{grid-column:1/-1;grid-row:6}
  .clock-view .timer-controls{grid-column:1/-1;grid-row:7;height:48px}
