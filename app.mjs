@@ -38,13 +38,18 @@ function colorName(t) { return state.colors[t]; }
 function teamHTML(color) {
   return `<span class="team-letter" data-color="${color}"><svg class="team-flag" viewBox="0 0 80 64" aria-hidden="true" focusable="false"><path class="flag-pole" d="M12 7v51"/><path class="flag-cloth" d="M13 10C32 0 48 20 69 9v33C48 53 32 33 13 43Z"/><path class="flag-fold" d="M41 11c9 3 18 4 28-2v33c-10 6-19 5-28 2Z"/></svg>${color}</span>`;
 }
+function iconButtonLabel(id,label,mode='') {
+  const button=$(id);button.setAttribute('aria-label',label);button.title=label;
+  const hidden=button.querySelector?.('.sr-only');if(hidden)hidden.textContent=label;
+  if(mode)button.setAttribute('data-mode',mode);else button.removeAttribute?.('data-mode');
+}
 function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
 function render() {
   const clockView=!!state?.clockView;
   nativeHost?.setClockView?.(clockView);
   $('board').className=clockView?'clock-view':'';
   $('clock-view-toggle').setAttribute('aria-pressed',String(clockView));
-  $('clock-view-toggle').textContent=clockView?'↙ Full board':'⛶ Maximize clock';
+  iconButtonLabel('clock-view-toggle',clockView?'Show full board':'Maximize clock');
   $('defaults-count').textContent=`${preferences.setupTeams}-team defaults`;
   $('setup-time').textContent = formatTime(preferences.gameMs);
   $('setup-changeover').textContent = formatTime(preferences.changeMs);
@@ -96,8 +101,8 @@ function render() {
   const shared=consecutiveColors(state);
   $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';
   if(state.finished){
-    $('end-session').textContent='View summary';
-    $('end-session-clock').textContent='View summary';
+    iconButtonLabel('end-session','View session summary','summary');
+    iconButtonLabel('end-session-clock','View session summary','summary');
     $('timer-status').textContent='SESSION COMPLETE';$('phase-label').textContent='FINAL WHISTLE';$('start').innerHTML='Session finished';
     $('timer-help').textContent='Return to selection to start another session.';
     for(const id of ['start','next','previous','next-card','deck-card','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
@@ -105,8 +110,8 @@ function render() {
     for(const id of ['next','deck']){$(id+'-match').textContent='Session complete';$(id+'-match').setAttribute('aria-label','Session complete');$(id+'-number').textContent='';}
     return;
   }
-  $('end-session').textContent='End session';
-  $('end-session-clock').textContent='End session';
+  iconButtonLabel('end-session','End session','stop');
+  iconButtonLabel('end-session-clock','End session','stop');
   $('start').disabled=preparingStart;$('next').disabled=false;$('restart-game').disabled=false;
   if(preparingStart)$('start').textContent='Preparing audio…';
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';

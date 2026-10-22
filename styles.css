@@ -181,6 +181,23 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  .team-option .arrow{display:none}.option-timing{left:12px;bottom:12px;font-size:9px}.setup-foot{margin-top:20px;gap:16px;font-size:20px}
  .setup-foot small{font-size:8px;letter-spacing:.6px}.setup-note{font-size:11px;margin-top:16px}
 }
+
+/* Compact, language-independent controls preserve 44px touch targets. */
+.icon-button{display:inline-grid;place-items:center;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;flex:0 0 48px}
+.control-icon{display:block;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.icon-stop{fill:currentColor;stroke:none}.icon-summary{display:none}
+[data-mode="summary"] .icon-stop{display:none}[data-mode="summary"] .icon-summary{display:block}
+#clock-view-toggle[aria-pressed="false"] .icon-collapse,#clock-view-toggle[aria-pressed="true"] .icon-expand{display:none}
+.board-actions{flex-wrap:nowrap}.board-actions .icon-button{width:48px;padding:0}
+.navigation{align-items:center}.navigation .icon-button{flex:0 0 52px;width:52px}
+.navigation .end-session{margin-left:4px}
+.clock-view .board-actions #clock-view-toggle,.clock-view .board-actions #end-session-clock{width:48px;min-width:48px;min-height:48px;padding:0;font-size:inherit}
+@media(max-width:600px){
+ .board-top{align-items:center}.board-actions{max-width:none}
+ .board-actions .icon-button{width:44px;min-width:44px;height:44px;min-height:44px;padding:0}
+ .navigation{width:auto}.navigation .icon-button{flex:0 0 48px;width:48px}
+ .under-board{justify-content:center}
+}
 /* Tall phones get the same complete session board without page scrolling. */
 @media(min-width:360px) and (max-width:649px) and (min-height:780px){
  body:has(#board:not([hidden])){height:100dvh;display:flex;flex-direction:column;overflow:hidden;padding-left:12px;padding-right:12px}
@@ -231,4 +248,13 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  #board:not(.clock-view) .text-button{font-size:10px}
  #board:not(.clock-view) .transition{font-size:10px;line-height:1.3;min-height:0;padding:3px 0}
  #board:not(.clock-view) .transition:empty{display:none}
+}
+@media(min-width:360px) and (max-width:649px) and (min-height:780px){
+ #board:not(.clock-view) .board-top{display:flex;align-items:center;gap:8px;margin:4px 0}
+ #board:not(.clock-view) .board-top>div:first-child{flex:1;min-width:0}
+ #board:not(.clock-view) .board-actions{display:grid;grid-template-columns:repeat(4,44px);gap:4px;margin-top:0}
+ #board:not(.clock-view) .board-actions .icon-button{font-size:inherit;line-height:1;min-width:44px;padding:0}
+ #board:not(.clock-view) .under-board{margin-top:4px;justify-content:center}
+ #board:not(.clock-view) .navigation{width:auto}
+ #board:not(.clock-view) .navigation .icon-button{flex:0 0 48px;width:48px;padding:0}
 }
