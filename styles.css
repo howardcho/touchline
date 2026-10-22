@@ -182,20 +182,22 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  .setup-foot small{font-size:8px;letter-spacing:.6px}.setup-note{font-size:11px;margin-top:16px}
 }
 
-/* Compact, language-independent controls preserve 44px touch targets. */
+/* Compact controls preserve 44px touch targets. */
 .icon-button{display:inline-grid;place-items:center;width:48px;height:48px;min-width:48px;min-height:48px;padding:0;flex:0 0 48px}
 .control-icon{display:block;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .icon-stop{fill:currentColor;stroke:none}.icon-summary{display:none}
 [data-mode="summary"] .icon-stop{display:none}[data-mode="summary"] .icon-summary{display:block}
 #clock-view-toggle[aria-pressed="false"] .icon-collapse,#clock-view-toggle[aria-pressed="true"] .icon-expand{display:none}
 .board-actions{flex-wrap:nowrap}.board-actions .icon-button{width:48px;padding:0}
-.navigation{align-items:center}.navigation .icon-button{flex:0 0 52px;width:52px}
+.navigation{display:grid;grid-template-columns:repeat(2,minmax(108px,1fr)) minmax(132px,1.15fr);align-items:center;width:min(100%,390px);gap:8px}
+.navigation .nav-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:0;min-height:48px;padding:9px 12px;font-size:15px;font-weight:700;white-space:nowrap}
+.navigation .nav-button .control-icon{width:22px;height:22px;flex:0 0 22px}
 .navigation .end-session{margin-left:4px}
 .clock-view .board-actions #clock-view-toggle,.clock-view .board-actions #end-session-clock{width:48px;min-width:48px;min-height:48px;padding:0;font-size:inherit}
 @media(max-width:600px){
  .board-top{align-items:center}.board-actions{max-width:none}
  .board-actions .icon-button{width:44px;min-width:44px;height:44px;min-height:44px;padding:0}
- .navigation{width:auto}.navigation .icon-button{flex:0 0 48px;width:48px}
+ .navigation{width:100%;grid-template-columns:1fr 1fr 1.2fr;gap:6px}.navigation .nav-button{min-height:48px;padding:8px 6px;font-size:14px;gap:5px}
  .under-board{justify-content:center}
 }
 /* Tall phones get the same complete session board without page scrolling. */
@@ -255,6 +257,56 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  #board:not(.clock-view) .board-actions{display:grid;grid-template-columns:repeat(4,44px);gap:4px;margin-top:0}
  #board:not(.clock-view) .board-actions .icon-button{font-size:inherit;line-height:1;min-width:44px;padding:0}
  #board:not(.clock-view) .under-board{margin-top:4px;justify-content:center}
- #board:not(.clock-view) .navigation{width:auto}
- #board:not(.clock-view) .navigation .icon-button{flex:0 0 48px;width:48px;padding:0}
+ #board:not(.clock-view) .navigation{width:100%}
+ #board:not(.clock-view) .navigation .nav-button{width:100%;padding:6px 4px;font-size:14px}
+}
+
+/* Maximized clock: keep the queue in a left rail and reserve the right side for the live game. */
+.clock-view .game-layout{grid-template-columns:clamp(118px,23vw,290px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:clamp(10px,2vw,24px)}
+.clock-view .queue{grid-column:1;grid-row:1;grid-template-columns:1fr;grid-template-rows:1fr 1fr;gap:10px}
+.clock-view .queue-card{min-height:0;padding:12px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+.clock-view .queue-card .card-top{display:flex}.clock-view .queue-card .card-top>span{display:inline}.clock-view .queue-card .card-top>span:last-child{margin-top:0}
+.clock-view .queue-card .matchup{flex-direction:column;justify-content:center;padding:0;gap:5px}
+.clock-view .queue-card .team-letter{flex-direction:row;font-size:clamp(12px,1.55vw,19px);gap:4px}
+.clock-view .queue-card .team-flag{width:26px;height:21px}
+.clock-view .now-card{grid-column:2;grid-row:1;grid-template-columns:minmax(150px,.8fr) minmax(220px,1.2fr);grid-template-rows:auto minmax(0,1fr) 48px;gap:6px 10px}
+.clock-view .now-card>.card-top{grid-column:1/-1;grid-row:1}
+.clock-view .current-game-clock{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:1fr;grid-template-rows:auto auto minmax(0,1fr) 4px;gap:2px;align-items:center;text-align:center}
+.clock-view .current-game-clock>.matchup{grid-column:1;grid-row:1;align-self:center;flex-direction:row;justify-content:center;min-height:0;margin:0;padding:0;border:0;gap:12px}
+.clock-view .timer-top{grid-column:1;grid-row:2;order:initial;padding:0;font-size:10px;letter-spacing:1px}
+.clock-view #timer{grid-column:1;grid-row:3;order:initial;align-self:center;font-size:clamp(88px,min(27vw,52dvh),420px);line-height:.9;letter-spacing:-.055em}
+.clock-view .progress{grid-column:1;grid-row:4;order:initial;margin:0;height:4px}
+.clock-view .now-card .team-letter{flex-direction:row;font-size:clamp(16px,2vw,28px);gap:5px}
+.clock-view .now-card .team-flag{width:38px;height:29px}
+.clock-view .flag-pole{display:none}
+.clock-view #start{grid-column:1;grid-row:3;justify-self:stretch;width:100%;min-height:48px}
+.clock-view .timer-controls{grid-column:2;grid-row:3;width:100%;height:48px}
+
+@media(max-width:540px){
+ .clock-view .game-layout{grid-template-columns:112px minmax(0,1fr);gap:8px}
+ .clock-view .now-card{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) 48px 48px;gap:5px}
+ .clock-view #start{grid-column:1;grid-row:3}
+ .clock-view .timer-controls{grid-column:1;grid-row:4;height:48px}
+ .clock-view .queue-card{padding:9px 7px;gap:7px}
+ .clock-view .queue-card .card-top{display:block}.clock-view .queue-card .card-top>span{display:block}.clock-view .queue-card .card-top>span:last-child{margin-top:3px}
+ .clock-view .queue-card .team-letter{font-size:12px}
+ .clock-view .queue-card .team-flag{width:22px;height:18px}
+ .clock-view .now-card .team-letter{font-size:14px}
+ .clock-view .now-card .team-flag{width:30px;height:23px}
+ .clock-view #timer{font-size:clamp(88px,27vw,150px)}
+}
+
+@media(max-height:500px) and (min-width:541px){
+ .clock-view .game-layout{grid-template-columns:clamp(170px,21vw,250px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:12px}
+ .clock-view .now-card{grid-template-rows:26px minmax(0,1fr) 44px}
+ .clock-view .current-game-clock{grid-template-columns:1fr;grid-template-rows:auto auto minmax(0,1fr) 4px;column-gap:0}
+ .clock-view .current-game-clock>.matchup{grid-column:1;grid-row:1;align-self:center;flex-direction:row;margin:0;padding:0;border:0}
+ .clock-view .timer-top{grid-column:1;grid-row:2}
+ .clock-view #timer{grid-column:1;grid-row:3;font-size:min(29vw,56dvh);line-height:.86}
+ .clock-view .progress{grid-column:1;grid-row:4}
+ .clock-view .queue{grid-template-columns:1fr;grid-template-rows:1fr 1fr;gap:8px}
+ .clock-view .queue-card{display:flex;padding:8px 10px}
+ .clock-view .queue-card .card-top{display:flex}.clock-view .queue-card .card-top>span{display:inline}.clock-view .queue-card .card-top>span:last-child{margin-top:0}
+ .clock-view .queue-card .matchup{justify-content:center}
+ .clock-view #start{min-height:44px}.clock-view .timer-controls{height:44px}
 }

@@ -38,9 +38,9 @@ function colorName(t) { return state.colors[t]; }
 function teamHTML(color) {
   return `<span class="team-letter" data-color="${color}"><svg class="team-flag" viewBox="0 0 80 64" aria-hidden="true" focusable="false"><path class="flag-pole" d="M12 7v51"/><path class="flag-cloth" d="M13 10C32 0 48 20 69 9v33C48 53 32 33 13 43Z"/><path class="flag-fold" d="M41 11c9 3 18 4 28-2v33c-10 6-19 5-28 2Z"/></svg>${color}</span>`;
 }
-function iconButtonLabel(id,label,mode='') {
+function iconButtonLabel(id,label,mode='',visibleLabel=label) {
   const button=$(id);button.setAttribute('aria-label',label);button.title=label;
-  const hidden=button.querySelector?.('.sr-only');if(hidden)hidden.textContent=label;
+  const text=button.querySelector?.('.sr-only, .button-label');if(text)text.textContent=visibleLabel;
   if(mode)button.setAttribute('data-mode',mode);else button.removeAttribute?.('data-mode');
 }
 function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
@@ -101,7 +101,7 @@ function render() {
   const shared=consecutiveColors(state);
   $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';
   if(state.finished){
-    iconButtonLabel('end-session','View session summary','summary');
+    iconButtonLabel('end-session','View session summary','summary','View summary');
     iconButtonLabel('end-session-clock','View session summary','summary');
     $('timer-status').textContent='SESSION COMPLETE';$('phase-label').textContent='FINAL WHISTLE';$('start').innerHTML='Session finished';
     $('timer-help').textContent='Return to selection to start another session.';

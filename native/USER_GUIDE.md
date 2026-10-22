@@ -22,7 +22,9 @@ In **Settings → Session**, choose an end time for today (using the iPad’s lo
 
 The board shows the finish policy and a **Session complete** state, which remains complete after refresh. Restart rotation retains the same end-time limit; return to selection to choose a new session. End-time enforcement also applies in manual mode, but automatic game sequencing requires starting the optional timer. Time adjustments cannot extend a hard cutoff.
 
-The compact toolbar uses standard icons for maximize, back, session timing, and restart rotation. Skip-back and skip-forward buttons move between games. Every icon retains a large touch target and an accessibility label for VoiceOver and TalkBack.
+The compact toolbar is ordered Back, Restart, Session timing, and Maximize. The Previous, Next, and End session controls pair familiar icons with larger text labels. Every control retains a large touch target and an accessibility label for VoiceOver and TalkBack.
+
+In the maximized clock view, Up Next and On Deck stay in a compact rail to the left of the timer. The current matchup sits above the clock, and the playback and time-adjustment controls have a separate row below it so they never cover the countdown.
 
 You can also tap the red **stop-square** button below the game board at any time. After confirmation, Touchline stops the active game and shows a match report with games played and actual timer-running time for every team, average playing time across all participating teams, and total elapsed session time. Pauses count toward total session time but not team playing time. A restarted game discards its false-start time; a partial game counts when it contains recorded playing time. Close the report to review the finished board, or use the report icon to reopen it.
 
