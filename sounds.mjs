@@ -169,7 +169,7 @@ export class MatchSounds {
     if(name==='start'){this.stopGroup('crowd');this.stopGroup('whistle');this.stopSpeech();}
     if((name==='start'||name==='whistle') && this.buffers.has('referee')) {
       this.stopGroup('whistle');
-      for(const p of SOUND_PLANS[name])this.recorded('referee',{at:p.at,duration:p.duration,volume:0.8,group:'whistle'});
+      for(const p of SOUND_PLANS[name])this.recorded('referee',{at:p.at,duration:p.duration,volume:1,group:'whistle'});
       if(name==='whistle' && crowd)this.recorded('crowd',{at:3.35,volume:crowdVolume,group:'crowd'});
       return true;
     }

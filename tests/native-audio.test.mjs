@@ -22,9 +22,9 @@ test('native whistle and crowd retain the existing full-time timing and mix',asy
  const {sounds,commands}=fixture();await sounds.unlock();sounds.play('whistle',{crowd:true,crowdVolume:0.15});
  const clips=commands.filter(command=>command.action==='play');
  assert.deepEqual(clips.map(({name,at,duration,volume,group})=>({name,at,duration,volume,group})),[
-  {name:'referee',at:0,duration:0.4,volume:0.8,group:'whistle'},
-  {name:'referee',at:0.85,duration:0.45,volume:0.8,group:'whistle'},
-  {name:'referee',at:1.75,duration:1.6,volume:0.8,group:'whistle'},
+  {name:'referee',at:0,duration:0.4,volume:1,group:'whistle'},
+  {name:'referee',at:0.85,duration:0.45,volume:1,group:'whistle'},
+  {name:'referee',at:1.75,duration:1.6,volume:1,group:'whistle'},
   {name:'crowd',at:3.35,duration:6,volume:0.15,group:'crowd'}
  ]);
 });
