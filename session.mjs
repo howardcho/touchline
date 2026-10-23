@@ -10,6 +10,27 @@ export function resolveSessionEnd(preferences, now=Date.now()) {
   if(end.getTime()<=now)throw new Error('Choose an end time later today in Session settings.');
   return {endAt:end.getTime(),endMode:preferences.endMode,minGameMs:Math.min(preferences.minGameMs,preferences.gameMs)};
 }
+export function updateSessionEnd(state, settings, now=Date.now()) {
+  if(state.finished)throw new Error('This session has ended. Return to selection to start another.');
+  if(settings.endEnabled&&(!END_MODES.includes(settings.endMode)))throw new Error('Choose how the session should finish.');
+  if(settings.endEnabled&&(!Number.isInteger(settings.minGameMs)||settings.minGameMs<1000||settings.minGameMs>state.gameMs))throw new Error('Choose a valid minimum shortened game.');
+  const ending=settings.endEnabled?resolveSessionEnd({...settings,gameMs:state.gameMs},now):null;
+  const wasHard=state.endMode==='hard'&&Number.isFinite(state.endAt);
+  if(wasHard&&state.phase==='game'&&state.phaseStarted&&state.phaseMs<state.gameMs) {
+    const elapsed=Math.max(0,state.phaseMs-state.remaining);
+    state.phaseMs=state.gameMs;state.remaining=Math.max(1000,state.gameMs-elapsed);
+    if(state.running)state.deadline=now+state.remaining;
+  }
+  if(!settings.endEnabled){delete state.endAt;delete state.endMode;delete state.minGameMs;return state;}
+  Object.assign(state,ending);
+  if(state.endMode==='hard') {
+    const available=Math.max(0,state.endAt-now);
+    state.remaining=Math.min(state.remaining,available);
+    if(state.running)state.deadline=now+state.remaining;
+    if(!state.phaseStarted)state.phaseMs=state.remaining;
+  }
+  return state;
+}
 export function finishSession(state, at, reason='end-time') {
   finishSessionTracking(state,at);
   state.finished=true;state.finishedAt=at;state.finishReason=reason;

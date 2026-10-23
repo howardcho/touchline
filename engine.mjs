@@ -228,7 +228,7 @@ export function rosterColorChoices(state, action, savedColors={}) {
 export function boardGames(state) {
   const waiting=!state.finished && ['changeover','countdown'].includes(state.phase);
   const base=waiting && state.phase==='changeover'?1:0;
-  const titles=waiting?['UP NEXT','ON DECK','AFTER THAT']:['NOW PLAYING','UP NEXT','ON DECK'];
+  const titles=waiting?['UP NEXT','AFTER THAT']:['NOW PLAYING','UP NEXT'];
   return titles.map((title,i)=>{
     const next=waiting && state.phase==='countdown' && state.pendingTeams
       ? {teams:state.pendingTeams.teams,colors:state.pendingTeams.colors,game:i+1}
@@ -238,7 +238,7 @@ export function boardGames(state) {
 }
 
 export function jumpToBoardGame(state, cardIndex, now=null) {
-  if(![0,1,2].includes(cardIndex))throw new Error('Choose a displayed game.');
+  if(![0,1].includes(cardIndex))throw new Error('Choose a displayed game.');
   if(state.finished)return state;
   const target=boardGames(state)[cardIndex];
   const pending=state.pendingTeams;
@@ -246,6 +246,49 @@ export function jumpToBoardGame(state, cardIndex, now=null) {
     beginTeamCycle(state,pending.teams,pending.colors,false,null,state.phase!=='countdown' && state.phaseStarted);
   }
   // Manual selection skips any opening/changeover countdown and pauses at full time.
+  state.countdownDone=true;
+  move(state,target.game-state.game,now);
+  return state;
+}
+
+// Future kickoffs for the game picker. Timed sessions end at their configured
+// boundary; continuous sessions show one complete rotation.
+export function upcomingGames(state, now=Date.now()) {
+  if(state.finished)return [];
+  const waiting=['changeover','countdown'].includes(state.phase);
+  const firstOffset=state.phase==='game'?1:(state.phase==='changeover'?1:0);
+  let kickoff=now+Math.max(0,state.remaining)+(state.phase==='game'?state.changeMs:0);
+  const continuous=!Number.isFinite(state.endAt);
+  const count=continuous
+    ? SCHEDULES[state.pendingTeams?.teams??state.teams].length
+    : Math.max(0,Math.ceil((state.endAt-kickoff)/Math.max(1,state.gameMs+state.changeMs))+1);
+  const games=[];
+  for(let i=0;i<count;i++) {
+    const offset=firstOffset+i;
+    let next;
+    if(waiting && state.phase==='countdown' && state.pendingTeams)next={teams:state.pendingTeams.teams,colors:state.pendingTeams.colors,game:i+1};
+    else next=upcomingGame(state,offset);
+    const duration=state.endMode==='hard'&&Number.isFinite(state.endAt)?Math.min(state.gameMs,state.endAt-kickoff):state.gameMs;
+    if(!continuous) {
+      const available=state.endAt-kickoff;
+      if(state.endMode==='full'&&available<state.gameMs)break;
+      if(state.endMode==='hard'&&available<Math.min(state.minGameMs??120000,state.gameMs))break;
+      if(state.endMode==='soft'&&available<=0)break;
+    }
+    games.push({...next,match:matchup(next.teams,next.game),offset,kickoff,duration:Math.max(0,duration)});
+    kickoff+=state.gameMs+state.changeMs;
+  }
+  return games;
+}
+
+export function jumpToUpcomingGame(state, offset, now=null) {
+  if(!Number.isInteger(offset)||offset<0)throw new Error('Choose an upcoming game.');
+  if(state.finished)return state;
+  const target=state.phase==='countdown'&&state.pendingTeams&&offset===0
+    ? {teams:state.pendingTeams.teams,colors:state.pendingTeams.colors,game:1}
+    : upcomingGame(state,offset);
+  const pending=state.pendingTeams;
+  if(pending && (offset>0 || state.phase!=='game'))beginTeamCycle(state,pending.teams,pending.colors,false,null,state.phase!=='countdown'&&state.phaseStarted);
   state.countdownDone=true;
   move(state,target.game-state.game,now);
   return state;

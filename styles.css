@@ -171,7 +171,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 .summary-color{display:inline-block;width:18px;height:18px;border-radius:4px;background:var(--team-color);border:1px solid #183b3030}
 .summary-table+.dialog-note{text-align:center}
 @media(max-width:540px){.summary-metrics{grid-template-columns:1fr}.summary-metrics>div{display:flex;align-items:center;justify-content:space-between}.summary-metrics strong{margin:0;font-size:18px}.navigation{flex-wrap:wrap}.navigation .end-session{flex-basis:100%}}
-.clock-view .board-actions>:not(#clock-view-toggle):not(#end-session-clock){display:none}
+.clock-view .board-actions>:not(#clock-view-toggle):not(#end-session-clock):not(#upcoming-games){display:none}
 .clock-view .board-actions #end-session-clock{display:block;width:auto;min-height:44px;padding:9px 16px;font-size:13px;color:#ffd6cd;border-color:#b77a6d}
 
 /* Phone selection keeps all four choices close together. */
@@ -263,7 +263,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 }
 
 /* Maximized clock: keep the queue in a left rail and reserve the right side for the live game. */
-.clock-view .game-layout{grid-template-columns:clamp(118px,23vw,290px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:clamp(10px,2vw,24px)}
+.clock-view .game-layout{grid-template-columns:clamp(108px,18vw,220px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:clamp(10px,2vw,24px)}
 .clock-view .queue{grid-column:1;grid-row:1;grid-template-columns:1fr;grid-template-rows:1fr 1fr;gap:10px}
 .clock-view .queue-card{min-height:0;padding:12px;display:flex;flex-direction:column;justify-content:center;gap:10px}
 .clock-view .queue-card .card-top{display:flex}.clock-view .queue-card .card-top>span{display:inline}.clock-view .queue-card .card-top>span:last-child{margin-top:0}
@@ -303,7 +303,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 }
 
 @media(max-height:500px) and (min-width:541px){
- .clock-view .game-layout{grid-template-columns:clamp(170px,21vw,250px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:12px}
+ .clock-view .game-layout{grid-template-columns:clamp(145px,17vw,210px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:12px}
  .clock-view .now-card{grid-template-rows:26px minmax(0,1fr) 44px}
  .clock-view .current-game-clock{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr) 4px;column-gap:0}
  .clock-view .current-game-clock>.matchup{grid-column:1;grid-row:1;align-self:center;flex-direction:row;margin:0;padding:0;border:0}
@@ -337,3 +337,30 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
  #board:not(.clock-view) .queue-card{padding:8px 10px}
  #board:not(.clock-view) .queue-card .team-letter{font-size:18px}#board:not(.clock-view) .queue-card .team-flag{width:28px;height:22px}
 }
+
+/* One visible future matchup plus a direct route to the complete session schedule. */
+.queue{grid-template-rows:minmax(0,1fr) auto}
+.queue-list-button{display:flex;align-items:center;justify-content:center;gap:9px;min-height:48px;padding:10px 14px;border:1px solid #b7c3ad;border-radius:11px;background:transparent;color:var(--green);font-size:12px;font-weight:750}
+.queue-list-button:hover{background:#e3e9d6}.queue-list-button .control-icon{width:21px;height:21px}
+.clock-view .queue{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
+.clock-view .queue-list-button{color:#f8f9ee;border-color:#526e5b;background:#264b3c}.clock-view .queue-list-button:hover{background:#315c47}
+.clock-view .board-actions #upcoming-games{display:inline-grid;width:48px;min-width:48px;min-height:48px;padding:0;color:#f8f9ee;border-color:#698571}
+.clock-view .board-actions{gap:6px}
+@media(max-width:600px){.queue{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}}
+@media(min-width:360px) and (max-width:649px) and (min-height:780px){
+ #board:not(.clock-view) .board-actions{grid-template-columns:repeat(5,44px)}
+ #board:not(.clock-view) .queue{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:1fr}
+ #board:not(.clock-view) .queue-list-button{width:48px;height:100%;padding:0}
+ #board:not(.clock-view) .queue-list-button span{display:none}
+}
+@media(max-width:540px){
+ .clock-view .queue{grid-template-columns:minmax(0,1fr) 48px;grid-template-rows:1fr}
+ .clock-view .queue-list-button{width:48px;height:100%;padding:0}.clock-view .queue-list-button span{display:none}
+}
+@media(max-height:500px) and (min-width:541px){.clock-view .queue{grid-template-rows:minmax(0,1fr) 44px}}
+
+.session-end-editor{border-top:1px solid var(--line)!important;margin-top:12px!important;padding-top:12px!important}.session-end-editor>.wake-label{margin-top:2px}.session-end-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:16px;align-items:end}.session-end-editor .session-fields{margin:6px 0 0}.session-end-editor #session-min-game{min-width:0}.session-min-title{display:block;font-size:12px;font-weight:600;margin-bottom:6px}.session-end-editor #session-min-game .duration-fields{margin-top:0}.session-end-editor input:disabled,.session-end-editor select:disabled{opacity:.45}
+#timing-dialog{max-width:720px;max-height:calc(100dvh - 24px);padding:20px}#timing-dialog .settings-heading{margin-bottom:6px}#timing-dialog>p{margin:5px 0 10px}#timing-dialog .settings-timing{margin-top:0;gap:18px}#timing-dialog .duration-fields{margin-top:8px;gap:10px}#timing-dialog .field-help{margin:7px 0;line-height:1.45}.timing-actions{margin-top:12px}
+#upcoming-dialog{max-width:680px;padding:24px}#upcoming-dialog h2{margin:4px 0 0}.upcoming-games-list{display:grid;gap:8px;margin-top:16px;max-height:58dvh;overflow:auto;padding:2px}
+.upcoming-game{display:grid;grid-template-columns:72px minmax(0,1fr) 82px;align-items:center;gap:10px;width:100%;min-height:64px;padding:8px 12px;border:1px solid #c8d0c0;border-radius:12px;background:#fffef7;color:var(--green);text-align:left}.upcoming-game:hover{background:#e5edd6}.upcoming-game-number,.upcoming-game-time{font-size:10px;font-weight:800;letter-spacing:.7px}.upcoming-game-time{text-align:right;color:#65715f}.upcoming-game-match{display:block}.upcoming-game .matchup{justify-content:flex-start;gap:10px}.upcoming-game .team-letter{flex-direction:row;font-size:15px;letter-spacing:0;gap:4px}.upcoming-game .team-flag{width:28px;height:23px}.upcoming-game .versus{font-size:12px}
+@media(max-width:540px){#timing-dialog{padding:18px}.session-end-grid{grid-template-columns:1fr}.session-end-editor .session-fields{grid-template-columns:1fr 1fr}.upcoming-game{grid-template-columns:58px minmax(0,1fr);gap:6px}.upcoming-game-time{display:none}.upcoming-game .team-letter{font-size:13px}.upcoming-game .team-flag{width:24px;height:20px}}

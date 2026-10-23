@@ -1,9 +1,9 @@
-import {resolveSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
+import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
-import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, MAX_DURATION_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
+import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, MAX_DURATION_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, jumpToUpcomingGame, upcomingGames, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
 const $ = id => document.getElementById(id);
 let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
@@ -65,7 +65,7 @@ function render() {
   const displayed=boardGames(state),main=displayed[0];
   $('team-summary').textContent = `${teams} TEAMS · ${SCHEDULES[teams].length}-GAME ROTATION`;
   $('game-number').textContent = `GAME ${main.game}`;
-  for(const [i,id] of ['now','next','deck'].entries()) {
+  for(const [i,id] of ['now','next'].entries()) {
     const upcoming=displayed[i],m=upcoming.match;
     $(id+'-title').textContent=upcoming.title;
     $(id+'-match').innerHTML=matchHTML(m,upcoming.colors);
@@ -105,13 +105,14 @@ function render() {
     iconButtonLabel('end-session-clock','View session summary','summary');
     $('timer-status').textContent='SESSION COMPLETE';$('phase-label').textContent='FINAL WHISTLE';$('start').innerHTML='Session finished';
     $('timer-help').textContent='Return to selection to start another session.';
-    for(const id of ['start','next','previous','next-card','deck-card','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
+    for(const id of ['start','next','previous','next-card','upcoming-games','upcoming-games-card','add-time','subtract-time','restart-game','add-team','remove-team'])$(id).disabled=true;
     $('transition').textContent='';
-    for(const id of ['next','deck']){$(id+'-match').textContent='Session complete';$(id+'-match').setAttribute('aria-label','Session complete');$(id+'-number').textContent='';}
+    $('next-match').textContent='Session complete';$('next-match').setAttribute('aria-label','Session complete');$('next-number').textContent='';
     return;
   }
   iconButtonLabel('end-session','End session','stop');
   iconButtonLabel('end-session-clock','End session','stop');
+  $('upcoming-games').disabled=false;$('upcoming-games-card').disabled=false;
   $('start').disabled=preparingStart;$('next').disabled=false;$('restart-game').disabled=false;
   if(preparingStart)$('start').textContent='Preparing audio…';
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
@@ -123,12 +124,13 @@ function playCue(cue) {
   if(cue==='start')sounds.stop();
   if(soundEnabled(preferences,cue))sounds.play(cue,{crowd:soundEnabled(preferences,'crowd'),crowdVolume:soundEnabled(preferences,'lineup')?0.15:0.45});
   else if(cue==='whistle' && soundEnabled(preferences,'crowd'))sounds.play('crowd');
-  if(cue==='whistle' && !state.finished && soundEnabled(preferences,'lineup')){
-    const lineup=lineupFor(state);sounds.sayTeams(lineup.up,lineup.deck,{delay:soundEnabled(preferences,'whistle')?3.55:0});announce(lineup.text);
+  if(cue==='whistle' && !state.finished && (state.pendingTeams?.teams??state.teams)>2 && soundEnabled(preferences,'lineup')){
+    const lineup=lineupFor(state);sounds.sayUp(lineup.up,{delay:soundEnabled(preferences,'whistle')?3.55:0});announce(lineup.upText);
   }
 }
 function cueAudible(cue) {
-  if(cue==='whistle')return soundEnabled(preferences,'whistle')||soundEnabled(preferences,'crowd')||soundEnabled(preferences,'lineup');
+  if(cue==='whistle')return soundEnabled(preferences,'whistle')||soundEnabled(preferences,'crowd')||((state.pendingTeams?.teams??state.teams)>2&&soundEnabled(preferences,'lineup'));
+  if(cue==='ten')return soundEnabled(preferences,'ten')||((state.pendingTeams?.teams??state.teams)>2&&soundEnabled(preferences,'lineup'));
   return soundEnabled(preferences,cue);
 }
 function tick() {
@@ -139,6 +141,10 @@ function tick() {
   const cue=timerCue(before,state,now);
   if(!state.finished)playCue(cue);
   if(['minute','thirty','ten'].includes(cue))announce({minute:'One minute remaining.',thirty:'Thirty seconds remaining.',ten:'Ten seconds remaining.'}[cue]);
+  if(cue==='ten' && (state.pendingTeams?.teams??state.teams)>2 && soundEnabled(preferences,'lineup') && document.visibilityState==='visible') {
+    const lineup=lineupFor(state),delay=soundEnabled(preferences,'ten')?sounds.duration('ten')+0.2:0;
+    sounds.sayDeck(lineup.up,{delay,replace:false});announce(`Team ${lineup.up[0]} and team ${lineup.up[1]}, you're on deck!`);
+  }
   const count=changeoverCount(before,state,now);
   if(count!==null) {
     if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
@@ -212,17 +218,17 @@ for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onc
   sounds.stop();adjustTime(state,delta,Date.now());persist();render();
   announce(`${state.phase==='game'?'Game':'Changeover'} timer: ${formatTime(state.remaining)}. ${state.running?'Running':'Paused'}.`);
 };
-async function selectGame(delta,cardIndex=null) {
-  sounds.stop();const ready=delta>0&&soundEnabled(preferences,'lineup')?sounds.unlock():Promise.resolve(false);
+async function selectGame(delta,cardIndex=null,upcomingOffset=null) {
+  sounds.stop();const ready=delta>0&&state.teams>2&&soundEnabled(preferences,'lineup')?sounds.unlock():Promise.resolve(false);
   const audioGeneration=sounds.generation;
-  const now=Date.now();if(cardIndex===null)move(state,delta,now);else jumpToBoardGame(state,cardIndex,now);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,now);persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
+  const now=Date.now();if(upcomingOffset!==null)jumpToUpcomingGame(state,upcomingOffset,now);else if(cardIndex===null)move(state,delta,now);else jumpToBoardGame(state,cardIndex,now);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,now);persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
   const movedState=state,movedGame=state.game;
-  if(await ready && sounds.generation===audioGeneration && state===movedState && state.game===movedGame && !state.finished && document.visibilityState==='visible'){
-    const lineup=lineupFor(state,0);sounds.sayTeams(lineup.up,lineup.deck);announce(lineup.text);
+  if(await ready && sounds.generation===audioGeneration && state===movedState && state.game===movedGame && state.teams>2 && !state.finished && document.visibilityState==='visible'){
+    const lineup=lineupFor(state,0);sounds.sayUp(lineup.up);announce(lineup.upText);
   }
 }
 for(const [id,delta] of [['previous',-1],['next',1]])$(id).onclick=()=>selectGame(delta);
-for(const [id,index] of [['next-card',1],['deck-card',2]])$(id).onclick=()=>selectGame(1,index);
+$('next-card').onclick=()=>selectGame(1,1);
 function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(sec/60).toString().padStart(2,'0')}:${(sec%60).toString().padStart(2,'0')}`; }
 function renderColorFields(colors) {
   $('color-fields').innerHTML = 'ABCDE'.split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
@@ -333,17 +339,58 @@ $('session-timing').onclick=()=>{
   for(const [prefix,value] of [['session-game',state.gameMs],['session-change',state.changeMs]]){
     $(prefix+'-minutes').value=Math.floor(value/60000);$(prefix+'-seconds').value=value/1000%60;
   }
+  const ending=Number.isFinite(state.endAt);
+  $('session-end-enabled').checked=ending;
+  $('session-end-time').value=ending?`${String(new Date(state.endAt).getHours()).padStart(2,'0')}:${String(new Date(state.endAt).getMinutes()).padStart(2,'0')}`:'';
+  $('session-end-mode').value=state.endMode??'hard';
+  const minimum=state.minGameMs??Math.min(120000,state.gameMs);
+  $('session-min-game-minutes').value=Math.floor(minimum/60000);$('session-min-game-seconds').value=minimum/1000%60;
+  syncSessionEndFields();
   $('timing-error').textContent='';$('timing-dialog').showModal();
 };
+function syncSessionEndFields(){
+  const enabled=$('session-end-enabled').checked,hard=$('session-end-mode').value==='hard';
+  $('session-end-time').disabled=!enabled;$('session-end-mode').disabled=!enabled;
+  $('session-min-game-minutes').disabled=!enabled||!hard;$('session-min-game-seconds').disabled=!enabled||!hard;
+}
+$('session-end-enabled').onchange=syncSessionEndFields;$('session-end-mode').onchange=syncSessionEndFields;
 $('cancel-timing').onclick=()=>$('timing-dialog').close();
 $('timing-form').onsubmit=event=>{
   event.preventDefault();
   try {
     tick();
     const duration=prefix=>(Number($(prefix+'-minutes').value)*60+Number($(prefix+'-seconds').value))*1000;
-    updateSessionTiming(state,duration('session-game'),duration('session-change'),Date.now());
+    const now=Date.now(),gameMs=duration('session-game'),minGameMs=duration('session-min-game');
+    if($('session-end-enabled').checked&&$('session-end-mode').value==='hard'&&(!durationOK(minGameMs)||minGameMs>gameMs))throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');
+    const draft=structuredClone(state);
+    updateSessionTiming(draft,gameMs,duration('session-change'),now);
+    updateSessionEnd(draft,{endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value,endMode:$('session-end-mode').value,minGameMs},now);
+    Object.assign(state,draft);
     persist();render();$('timing-dialog').close();announce('Session timing updated. Saved defaults unchanged.');
   }catch(error){$('timing-error').textContent=error.message;}
+};
+
+function openUpcomingGames(){
+  tick();if(!state||state.finished)return;
+  const games=upcomingGames(state,Date.now());
+  $('upcoming-note').textContent=Number.isFinite(state.endAt)
+    ? `${games.length} ${games.length===1?'game':'games'} can start before ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}. Choose one to play it now.`
+    : `Continuous rotation · showing the next complete ${SCHEDULES[state.pendingTeams?.teams??state.teams].length}-game cycle. Choose one to play it now.`;
+  const rows=games.map(game=>{
+    const button=document.createElement('button');button.type='button';button.className='upcoming-game';button.dataset.offset=game.offset;
+    button.setAttribute('aria-label',`Play game ${game.game}: ${game.colors[game.match[0]]} versus ${game.colors[game.match[1]]} now`);
+    const label=document.createElement('span');label.className='upcoming-game-number';label.textContent=`GAME ${game.game}`;
+    const match=document.createElement('span');match.className='upcoming-game-match';match.innerHTML=matchHTML(game.match,game.colors);
+    const time=document.createElement('span');time.className='upcoming-game-time';time.textContent=Number.isFinite(state.endAt)?new Date(game.kickoff).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'Play now';
+    button.append(label,match,time);return button;
+  });
+  $('upcoming-games-list').replaceChildren(...rows);
+  if(!$('upcoming-dialog').open)$('upcoming-dialog').showModal();
+}
+$('upcoming-games').onclick=openUpcomingGames;$('upcoming-games-card').onclick=openUpcomingGames;
+$('upcoming-games-list').onclick=event=>{
+  const button=event.target.closest('.upcoming-game');if(!button)return;
+  $('upcoming-dialog').close();selectGame(1,null,Number(button.dataset.offset));
 };
 function toggleClockView() {
   if(!state)return;

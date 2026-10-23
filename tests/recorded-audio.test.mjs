@@ -54,6 +54,14 @@ test('lineup recordings play the requested pairs in order and kickoff cancels bo
  sounds.play('start');assert.ok(sources.slice(0,2).every(s=>s.stopped));
  assert.equal(sounds.sayTeams(['Invalid','Blue'],['Purple','Black']),false);
 });
+test('single callouts can announce on-deck after a warning and up after the whistle',()=>{
+ const {sounds,sources}=fixture();
+ sounds.play('ten');assert.equal(sounds.sayDeck(['Red','Blue'],{delay:sounds.duration('ten')+0.2,replace:false}),true);
+ assert.equal(sources[0].buffer.name,'ten');assert.equal(sources[0].stopped,undefined);
+ assert.equal(sources[1].buffer.name,'deck-Red-Blue');assert.ok(sources[1].startArgs[0]>=10.8);
+ assert.equal(sounds.sayUp(['Green','Black'],{delay:3.55}),true);assert.equal(sources[2].buffer.name,'up-Green-Black');
+ assert.equal(sounds.sayDeck(['Red','Red']),false);
+});
 
 test('complete callouts cover both instructions for every distinct color pairing in either order',()=>{
  const colors=['Red','Blue','Green','Black','Yellow','Orange','Purple','Pink','White','Gray'];

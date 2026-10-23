@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {MAX_DURATION_MS,fresh,toggle,settle,move,restartGame,updateSessionTiming} from '../engine.mjs';
 import {loadPreferences,savePreferences,profileFor,selectProfile,PREF_KEY} from '../preferences.mjs';
 import {timerCue} from '../sounds.mjs';
+import {updateSessionEnd} from '../session.mjs';
 const memory=()=>{const data=new Map();return {getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value)};};
 
 test('running game retains its deadline and gets new durations at future boundaries',()=>{
@@ -43,6 +44,21 @@ test('duration edits validate before mutation and settle overdue phases before a
 test('one-minute warning uses actual game length after future-duration edit',()=>{
  const s=fresh(5);toggle(s,0);updateSessionTiming(s,30000,10000,0);settle(s,179000);
  const before={...s};settle(s,180000);assert.equal(timerCue(before,s,180000),'minute');
+});
+test('session end settings can be added, changed, and removed without changing saved defaults',()=>{
+ const base=new Date(2026,9,22,18,0).getTime(),s=fresh(5);toggle(s,base);
+ updateSessionEnd(s,{endEnabled:true,endTime:'19:00',endMode:'hard',minGameMs:90000},base+1000);
+ assert.equal(s.endAt,new Date(2026,9,22,19,0).getTime());assert.equal(s.endMode,'hard');assert.equal(s.minGameMs,90000);
+ updateSessionEnd(s,{endEnabled:true,endTime:'20:00',endMode:'soft',minGameMs:90000},base+2000);assert.equal(s.endMode,'soft');
+ updateSessionEnd(s,{endEnabled:false},base+3000);assert.equal('endAt' in s,false);assert.equal('endMode' in s,false);
+});
+test('removing a hard stop restores the unused portion of a shortened running game',()=>{
+ const base=new Date(2026,9,22,18,0).getTime(),s=fresh(5);toggle(s,base);
+ updateSessionEnd(s,{endEnabled:true,endTime:'18:03',endMode:'hard',minGameMs:60000},base+1000);
+ assert.equal(s.phaseMs,240000);assert.equal(s.remaining,179000);
+ // A game admitted as a true partial has a shortened phase length.
+ s.phaseMs=s.remaining=120000;s.deadline=base+122000;
+ updateSessionEnd(s,{endEnabled:false},base+2000);assert.equal(s.phaseMs,240000);assert.equal(s.remaining,240000);assert.equal(s.deadline,base+242000);
 });
 test('old preferences seed four independent profiles without losing explicit choices',()=>{
  const storage=memory();storage.setItem(PREF_KEY,JSON.stringify({setupTeams:3,gameMs:300000,changeMs:45000,sounds:false,endEnabled:false,colors:{A:'Purple',B:'Blue',C:'Green',D:'White',E:'Yellow'}}));

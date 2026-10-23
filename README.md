@@ -12,7 +12,7 @@ Both apps bundle the interface and all audio for offline use. Native audio ducks
 ## What Touchline does
 
 - Repeating rotations for two to five teams, with unique, ordered team colors.
-- Large now-playing, up-next, and on-deck matchups; tappable upcoming games.
+- Large now-playing and up-next matchups, plus a tappable list of every game that fits before the session ends.
 - Optional game/changeover timers, a five-second opening countdown, pause/resume, restart, and ±30-second controls.
 - Full-screen match clock; portrait and landscape layouts.
 - Referee whistles, spoken warnings, team callouts, and optional stadium crowd.

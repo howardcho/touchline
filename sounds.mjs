@@ -22,7 +22,8 @@ export const SOUND_PLANS = {
 export function lineupFor(state, offset=1) {
   const colorsAt=offset=>{const game=upcomingGame(state,offset);return [...matchup(game.teams,game.game)].map(t=>game.colors[t]);};
   const up=colorsAt(offset),deck=colorsAt(offset+1);
-  return {up,deck,text:`Team ${up[0]} and team ${up[1]}, you're up! Team ${deck[0]} and team ${deck[1]}, you're on deck!`};
+  const upText=`Team ${up[0]} and team ${up[1]}, you're up!`,deckText=`Team ${deck[0]} and team ${deck[1]}, you're on deck!`;
+  return {up,deck,upText,deckText,text:`${upText} ${deckText}`};
 }
 export function timerCue(before, after, now) {
   if(!before.finished && after.finished && before.running && now>=after.finishedAt && now-after.finishedAt<=1500)return 'whistle';
@@ -140,6 +141,18 @@ export class MatchSounds {
     if(!delay)return this.speak(text);
     const timer=setTimeout(()=>{this.previewTimers.delete(timer);this.speak(text);},delay*1000);this.previewTimers.add(timer);return true;
   }
+  sayPair(pair,role,{delay=0,replace=true}={}) {
+    const key=calloutKey(pair,role);
+    if(!key)return false;
+    if(replace)this.stopSpeech();
+    if(this.buffers.has(key)){this.recorded(key,{at:delay,group:'voice'});return true;}
+    const text=`Team ${pair[0]} and team ${pair[1]}, you're ${role==='up'?'up':'on deck'}!`;
+    if(!delay)return this.speak(text);
+    const timer=setTimeout(()=>{this.previewTimers.delete(timer);this.speak(text);},delay*1000);this.previewTimers.add(timer);return true;
+  }
+  sayUp(pair,options) { return this.sayPair(pair,'up',options); }
+  sayDeck(pair,options) { return this.sayPair(pair,'deck',options); }
+  duration(name,fallback=1.5) { return this.buffers.get(name)?.duration ?? fallback; }
   previewCountdown() {
     this.stop();this.sayCount(5);
     for(let i=1;i<=5;i++) {

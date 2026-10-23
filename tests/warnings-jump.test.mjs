@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {fresh,toggle,settle,boardGames,jumpToBoardGame,changeTeamRoster} from '../engine.mjs';
+import {fresh,toggle,settle,boardGames,jumpToBoardGame,jumpToUpcomingGame,upcomingGames,changeTeamRoster} from '../engine.mjs';
 import {timerCue,MatchSounds,AUDIO_FILES} from '../sounds.mjs';
 import {loadPreferences,soundEnabled} from '../preferences.mjs';
 
@@ -25,7 +25,7 @@ test('new warnings default on independently and play the matching recordings',()
  sounds.play('thirty');sounds.play('ten');assert.deepEqual(played,['thirty','ten']);assert.equal(AUDIO_FILES.thirty,'thirty.mp3');
 });
 test('jump selects the exact displayed match, pauses at full duration, and skips opening countdown',()=>{
- for(const phase of ['game','changeover','countdown'])for(const card of [1,2]){
+ for(const phase of ['game','changeover','countdown'])for(const card of [1]){
   const s=fresh(5);s.startCountdown=phase==='countdown';toggle(s,0);if(phase==='changeover')settle(s,s.gameMs);
   const target=boardGames(s)[card];jumpToBoardGame(s,card);
   assert.equal(s.game,target.game);assert.equal(s.phase,'game');assert.equal(s.running,false);assert.equal(s.remaining,s.gameMs);
@@ -33,7 +33,7 @@ test('jump selects the exact displayed match, pauses at full duration, and skips
  }
 });
 test('jumps respect pending roster and numeric game-number collisions across a fresh cycle',()=>{
- for(const card of [1,2])for(const changing of [false,true]){
+ for(const card of [1])for(const changing of [false,true]){
   const s=fresh(5);s.game=card;toggle(s,0);changeTeamRoster(s,'remove','Blue',1000);if(changing)settle(s,s.gameMs);
   const target=boardGames(s)[card];jumpToBoardGame(s,card);
   assert.equal(s.teams,4);assert.equal(s.game,target.game);assert.deepEqual(s.colors,target.colors);assert.deepEqual(boardGames(s)[0].match,target.match);assert.equal(s.pendingTeams,undefined);
@@ -42,6 +42,18 @@ test('jumps respect pending roster and numeric game-number collisions across a f
 });
 test('jump wraps schedules normally, keeps cutoff/settings, and cannot change finished sessions',()=>{
  const s={...fresh(5,undefined,300000,45000),game:20,endAt:900000,endMode:'hard',minGameMs:60000};
- const target=boardGames(s)[2];jumpToBoardGame(s,2);assert.equal(s.game,22);assert.equal(boardGames(s)[0].match,target.match);assert.equal(s.endAt,900000);assert.equal(s.changeMs,45000);
- assert.throws(()=>jumpToBoardGame(s,3));s.finished=true;const original=structuredClone(s);jumpToBoardGame(s,1);assert.deepEqual(s,original);
+ const target=upcomingGames(s,0)[1];jumpToUpcomingGame(s,target.offset);assert.equal(s.game,22);assert.equal(boardGames(s)[0].match,target.match);assert.equal(s.endAt,900000);assert.equal(s.changeMs,45000);
+ assert.throws(()=>jumpToBoardGame(s,2));s.finished=true;const original=structuredClone(s);jumpToBoardGame(s,1);assert.deepEqual(s,original);
+});
+test('upcoming list reaches the cutoff and can jump directly to a later scheduled game',()=>{
+ const timed={...fresh(5,undefined,240000,30000),endAt:900000,endMode:'full',minGameMs:60000};
+ const list=upcomingGames(timed,0);assert.deepEqual(list.map(g=>g.game),[2,3]);assert.deepEqual(list.map(g=>g.kickoff),[270000,540000]);
+ const chosen=list[1];jumpToUpcomingGame(timed,chosen.offset,1000);assert.equal(timed.game,3);assert.equal(timed.running,false);assert.equal(timed.remaining,240000);
+ const continuous=upcomingGames(fresh(4),0);assert.equal(continuous.length,6);assert.deepEqual(continuous.map(g=>g.game),[2,3,4,5,6,7]);
+});
+test('upcoming list includes only final games admitted by each end rule',()=>{
+ const base={...fresh(5),endAt:650000,minGameMs:60000};
+ const hard=upcomingGames({...base,endMode:'hard'},0);assert.deepEqual(hard.map(g=>g.game),[2,3]);assert.equal(hard.at(-1).duration,110000);
+ assert.deepEqual(upcomingGames({...base,endMode:'soft'},0).map(g=>g.game),[2,3]);
+ assert.deepEqual(upcomingGames({...base,endMode:'full'},0).map(g=>g.game),[2]);
 });

@@ -22,14 +22,14 @@ test('queued roster change during countdown is previewed and applies at first ki
  const before=boardGames(s);assert.equal(before[0].teams,4);assert.deepEqual(Object.values(before[0].colors),['Red','Green','Black','Yellow']);
  settle(s,5000);assert.equal(s.game,1);assert.equal(s.teams,4);assert.equal(s.teamHistory.length,0);assert.deepEqual(boardGames(s)[0].colors,before[0].colors);
 });
-test('changeover advances all three displayed matchups; kickoff keeps them and flips titles',()=>{
+test('changeover advances both displayed matchups; kickoff keeps them and flips titles',()=>{
  const s=fresh(5);toggle(s,0);settle(s,s.gameMs);
- const waiting=boardGames(s);assert.deepEqual(waiting.map(m=>m.title),['UP NEXT','ON DECK','AFTER THAT']);assert.deepEqual(waiting.map(m=>m.game),[2,3,4]);
- settle(s,s.gameMs+s.changeMs);const playing=boardGames(s);assert.deepEqual(playing.map(m=>m.title),['NOW PLAYING','UP NEXT','ON DECK']);assert.deepEqual(playing.map(m=>m.match),waiting.map(m=>m.match));
+ const waiting=boardGames(s);assert.deepEqual(waiting.map(m=>m.title),['UP NEXT','AFTER THAT']);assert.deepEqual(waiting.map(m=>m.game),[2,3]);
+ settle(s,s.gameMs+s.changeMs);const playing=boardGames(s);assert.deepEqual(playing.map(m=>m.title),['NOW PLAYING','UP NEXT']);assert.deepEqual(playing.map(m=>m.match),waiting.map(m=>m.match));
 });
 test('changeover cards agree with queued roster kickoff, including loop boundaries',()=>{
  const s=fresh(5);s.game=20;toggle(s,0);changeTeamRoster(s,'remove','Blue',1000);settle(s,s.gameMs);
- const waiting=boardGames(s);assert.deepEqual(waiting.map(m=>m.game),[1,2,3]);assert.equal(waiting[0].teams,4);assert.deepEqual(waiting.map(m=>m.match),[1,2,3].map(n=>matchup(4,n)));
+ const waiting=boardGames(s);assert.deepEqual(waiting.map(m=>m.game),[1,2]);assert.equal(waiting[0].teams,4);assert.deepEqual(waiting.map(m=>m.match),[1,2].map(n=>matchup(4,n)));
  settle(s,s.gameMs+s.changeMs);assert.deepEqual(boardGames(s).map(m=>m.colors),waiting.map(m=>m.colors));assert.deepEqual(boardGames(s).map(m=>m.match),waiting.map(m=>m.match));
 });
 test('end-time fit includes opening countdown; hard cutoff and background catch-up stay exact',()=>{
