@@ -159,10 +159,12 @@ function tick() {
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
   selectProfile(preferences,teams);
-  let ending;try{ending=resolveSessionEnd(preferences);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
+  const now=Date.now();let ending,elapsedEnd=false;
+  try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
   state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown};
   persist();render();$('start').focus();
+  if(elapsedEnd)announce('The saved end time has passed. This session will run continuously unless you set a new end time in Session timing.');
 });
 $('start').onclick=async()=> {
   if(preparingStart)return;

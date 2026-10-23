@@ -44,7 +44,7 @@ test('end settings resolve to later today only; untimed sessions stay unlimited'
  const now=new Date(2026,9,16,18,0).getTime();
  const prefs={endEnabled:true,endTime:'20:30',endMode:'hard',minGameMs:120000,gameMs:240000};
  assert.equal(resolveSessionEnd(prefs,now).endAt,new Date(2026,9,16,20,30).getTime());
- assert.throws(()=>resolveSessionEnd({...prefs,endTime:'17:00'},now));assert.throws(()=>resolveSessionEnd({...prefs,endTime:'25:00'},now));assert.deepEqual(resolveSessionEnd({...prefs,endEnabled:false},now),{});
+ assert.throws(()=>resolveSessionEnd({...prefs,endTime:'17:00'},now));assert.deepEqual(resolveSessionEnd({...prefs,endTime:'17:00'},now,true),{});assert.throws(()=>resolveSessionEnd({...prefs,endTime:'25:00'},now));assert.deepEqual(resolveSessionEnd({...prefs,endEnabled:false},now),{});
 });
 
 test('short final kickoff and final whistle are detected once and stale final cues are skipped',async()=>{

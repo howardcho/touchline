@@ -2,12 +2,15 @@ import {finishSessionTracking} from './stats.mjs';
 
 export const END_MODES = ['hard','soft','full'];
 export const validEndTime = value => typeof value==='string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
-export function resolveSessionEnd(preferences, now=Date.now()) {
+export function resolveSessionEnd(preferences, now=Date.now(), allowElapsed=false) {
   if(!preferences.endEnabled)return {};
   if(!validEndTime(preferences.endTime))throw new Error('Choose a session end time.');
   const end=new Date(now),[hours,minutes]=preferences.endTime.split(':').map(Number);
   end.setHours(hours,minutes,0,0);
-  if(end.getTime()<=now)throw new Error('Choose an end time later today in Session settings.');
+  if(end.getTime()<=now) {
+    if(allowElapsed)return {};
+    throw new Error('Choose an end time later today in Session settings.');
+  }
   return {endAt:end.getTime(),endMode:preferences.endMode,minGameMs:Math.min(preferences.minGameMs,preferences.gameMs)};
 }
 export function updateSessionEnd(state, settings, now=Date.now()) {
