@@ -26,6 +26,8 @@ test('Android bridge uses native audio, preserving payloads and reported failure
  host.postMessage({keepAwake:false});assert.deepEqual(commands.at(-1),{action:'keepAwake',enabled:false});
  host.setClockView(true);host.setClockView(true);host.setClockView(false);
  assert.deepEqual(commands.filter(c=>c.action==='fullscreen'),[{action:'fullscreen',enabled:true},{action:'fullscreen',enabled:false}]);
+ assert.equal(host.premium.status(),null);host.premium.purchase();host.premium.restore();host.premium.debugUnlock();
+ assert.deepEqual(commands.slice(-4).map(c=>c.action),['premiumStatus','purchasePremium','restorePremium','debugUnlockPremium']);
  await assert.rejects(host.audio.postMessage({action:'bad'}),/Native playback failed/);
  sounds.stop();assert.equal(commands.at(-1).action,'stop');
  assert.equal(createMatchSounds({}).constructor,MatchSounds);

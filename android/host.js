@@ -12,6 +12,12 @@
       call({action:'fullscreen',enabled:!!enabled});
       clockView = enabled;
     },
+    premium: {
+      status: () => call({action:'premiumStatus'}),
+      purchase: () => call({action:'purchasePremium'}),
+      restore: () => call({action:'restorePremium'}),
+      debugUnlock: () => call({action:'debugUnlockPremium'})
+    },
     audio: {postMessage: command => {
       try { return Promise.resolve(call(command)); }
       catch (error) { return Promise.reject(error); }

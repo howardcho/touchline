@@ -9,6 +9,9 @@ let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
 const sounds = createMatchSounds();
 const nativeHost=globalThis.touchlineNative ?? globalThis.webkit?.messageHandlers?.touchlineHost;
+const premiumHost=nativeHost?.premium;
+const basePremium={enabled:false,ready:true,unlocked:true,price:'$9.99',testMode:false,pending:false,message:''};
+let premium={...basePremium,...(premiumHost?.status?.()||{})},pendingPremiumTeams=null;
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
 wantWake=preferences.keepAwake;$('wake').checked=wantWake;
@@ -58,6 +61,9 @@ function render() {
     const count=Number(button.dataset.teams), profile=profileFor(preferences,count), colors=colorsForTeams(count,profile.colors);
     button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
     button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
+    const locked=premium.enabled&&!premium.unlocked&&count>2;
+    button.setAttribute('data-premium',locked?'locked':'open');
+    button.querySelector('.arrow').textContent=locked?'PREMIUM':'↗';
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
@@ -117,6 +123,19 @@ function render() {
   if(preparingStart)$('start').textContent='Preparing audio…';
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
+function renderPremium() {
+  $('premium-price').textContent=premium.price||'$9.99';
+  $('premium-status').textContent=premium.message||(premium.pending?'Purchase pending. Premium unlocks after Google Play confirms payment.':premium.ready?'':'Connecting to Google Play…');
+  $('buy-premium').disabled=!premium.ready||premium.unlocked||premium.pending;
+  $('restore-premium').disabled=!premium.ready;
+  $('debug-premium').hidden=!premium.testMode;$('debug-premium').disabled=premium.unlocked;
+}
+function openPremium(teams=null) {pendingPremiumTeams=teams;renderPremium();$('premium-dialog').showModal();}
+globalThis.touchlinePremiumUpdated=status=>{
+  premium={...basePremium,...premium,...(status||{})};render();renderPremium();
+  if(premium.enabled&&premium.ready&&!premium.unlocked&&state?.teams>2){state=null;persist();render();openPremium();}
+  if(premium.unlocked&&$('premium-dialog').open){$('premium-dialog').close();const teams=pendingPremiumTeams;pendingPremiumTeams=null;if(teams)document.querySelector(`[data-teams="${teams}"]`)?.click();}
+};
 function announce(text) { $('announcement').textContent=text; }
 function playCue(cue) {
   if(!cue || document.visibilityState!=='visible')return;
@@ -158,6 +177,7 @@ function tick() {
 }
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
+  if(premium.enabled&&!premium.unlocked&&teams>2){openPremium(teams);return;}
   selectProfile(preferences,teams);
   const now=Date.now();let ending,elapsedEnd=false;
   try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
@@ -192,6 +212,7 @@ function openRosterPicker(action) {
   tick();
   const current=Object.values(state.pendingTeams?.colors || state.colors);
   if((action==='add' && current.length>=5)||(action==='remove' && current.length<=2))return;
+  if(action==='add'&&current.length>=2&&premium.enabled&&!premium.unlocked){openPremium();return;}
   rosterAction=action;
   const candidates=rosterColorChoices(state,action,preferences.colors);
   $('roster-title').textContent=action==='add'?'Add a team':'Remove a team';
@@ -211,6 +232,9 @@ $('roster-form').onsubmit=event=>{
   } catch(error){$('roster-error').textContent=error.message;}
 };
 $('cancel-team-change').onclick=()=>{delete state.pendingTeams;persist();render();announce('Team-count change canceled.');};
+$('buy-premium').onclick=()=>{premium.message='Opening Google Play…';renderPremium();premiumHost?.purchase?.();};
+$('restore-premium').onclick=()=>{premium.message='Checking your Google Play purchases…';renderPremium();premiumHost?.restore?.();};
+$('debug-premium').onclick=()=>premiumHost?.debugUnlock?.();
 $('restart-game').onclick=()=>{
   sounds.stop();restartGame(state);persist();render();
   announce(`Game ${state.game} restarted with ${formatTime(state.gameMs)}. Timer paused.`);

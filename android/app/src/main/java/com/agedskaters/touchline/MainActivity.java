@@ -43,6 +43,7 @@ public final class MainActivity extends Activity {
     private FrameLayout root;
     private WebView web;
     private DuckingAudio audio;
+    private PremiumBilling premium;
     private boolean active, wantsAwake, wantsFullscreen;
     private int insetLeft=-1,insetTop=-1,insetRight=-1,insetBottom=-1;
     private LinearLayout errorView;
@@ -77,7 +78,9 @@ public final class MainActivity extends Activity {
             return insets;
         });
         audio = new DuckingAudio(this, this::audioError);
+        premium = new PremiumBilling(this,this::premiumChanged);
         createWebView();
+        premium.start();
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::navigateBack);
@@ -163,6 +166,10 @@ public final class MainActivity extends Activity {
                     return new JSONObject().put("value",audio.prepare()).toString();
                 }
                 FutureTask<Object> task = new FutureTask<>(() -> {
+                    if ("premiumStatus".equals(command.optString("action"))) return premium.status();
+                    if ("purchasePremium".equals(command.optString("action"))) {premium.purchase();return null;}
+                    if ("restorePremium".equals(command.optString("action"))) {premium.restore();return null;}
+                    if ("debugUnlockPremium".equals(command.optString("action"))) {premium.debugUnlock();return null;}
                     if ("fullscreen".equals(command.optString("action"))) {
                         wantsFullscreen=command.optBoolean("enabled",false); applyWindowMode(); return null;
                     }
@@ -243,17 +250,21 @@ public final class MainActivity extends Activity {
         Log.e("Touchline",message);
         if (web != null) web.evaluateJavascript("(()=>{const e=document.getElementById('sound-status');if(e)e.textContent=" + JSONObject.quote(message) + ";})()",null);
     }
+    private void premiumChanged() {
+        if(web!=null)web.evaluateJavascript("window.touchlinePremiumUpdated&&window.touchlinePremiumUpdated("+premium.status().toString()+")",null);
+    }
     private void updateAwake() {
         if (active && wantsAwake) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
-    @Override protected void onResume() { super.onResume(); active=true; updateAwake(); applyWindowMode(); if(web!=null)web.onResume(); }
+    @Override protected void onResume() { super.onResume(); active=true; updateAwake(); applyWindowMode(); if(web!=null)web.onResume();if(premium!=null)premium.refresh(); }
     @Override protected void onPause() {
         active=false; updateAwake(); audio.stop();
         if(web!=null)web.onPause(); super.onPause();
     }
     @Override protected void onDestroy() {
         audio.stop();
+        if(premium!=null){premium.destroy();premium=null;}
         if(web!=null){web.removeJavascriptInterface("TouchlineAndroid");root.removeView(web);web.destroy();web=null;}
         super.onDestroy();
     }
