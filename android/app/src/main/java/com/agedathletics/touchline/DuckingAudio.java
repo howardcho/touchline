@@ -1,4 +1,4 @@
-package com.agedskaters.touchline;
+package com.agedathletics.touchline;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;

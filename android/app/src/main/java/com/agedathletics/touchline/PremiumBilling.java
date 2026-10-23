@@ -1,4 +1,4 @@
-package com.agedskaters.touchline;
+package com.agedathletics.touchline;
 
 import android.app.Activity;
 import android.content.SharedPreferences;
@@ -27,8 +27,8 @@ final class PremiumBilling implements PurchasesUpdatedListener {
     private final SharedPreferences preferences;
     private BillingClient client;
     private ProductDetails details;
-    private volatile boolean connected, ready, owned, pending;
-    private volatile String price="$9.99", message="Connecting to Google Play…";
+    private volatile boolean connected, ready = BuildConfig.DEBUG, owned, pending;
+    private volatile String price="$9.99", message=BuildConfig.DEBUG ? "" : "Connecting to Google Play…";
 
     PremiumBilling(Activity activity, Listener listener) {
         this.activity=activity;this.listener=listener;
@@ -44,16 +44,16 @@ final class PremiumBilling implements PurchasesUpdatedListener {
         client.startConnection(new BillingClientStateListener() {
             @Override public void onBillingSetupFinished(BillingResult result) {
                 if(result.getResponseCode()==BillingClient.BillingResponseCode.OK){connected=true;queryPurchases(false);queryDetails();}
-                else {ready=true;message="Google Play purchases are unavailable right now.";changed();}
+                else {ready=true;if(!BuildConfig.DEBUG)message="Google Play purchases are unavailable right now.";changed();}
             }
-            @Override public void onBillingServiceDisconnected(){connected=false;message="Reconnecting to Google Play…";changed();}
+            @Override public void onBillingServiceDisconnected(){connected=false;if(!BuildConfig.DEBUG)message="Reconnecting to Google Play…";changed();}
         });
     }
 
     JSONObject status() {
         JSONObject value=new JSONObject();
         try {
-            value.put("enabled",true);value.put("ready",ready);value.put("unlocked",owned);
+            value.put("enabled",true);value.put("ready",ready || BuildConfig.DEBUG);value.put("unlocked",owned);
             value.put("pending",pending);value.put("price",price);value.put("testMode",BuildConfig.DEBUG);
             value.put("message",message);
         } catch(Exception ignored) { }
@@ -62,17 +62,29 @@ final class PremiumBilling implements PurchasesUpdatedListener {
 
     void purchase() {
         if(owned){message="Premium is already unlocked.";changed();return;}
-        if(!connected||details==null){message="Premium purchasing is available after this app is installed from Google Play.";changed();return;}
+        if(!connected||details==null){
+            if(BuildConfig.DEBUG){debugUnlock();return;}
+            message="Premium purchasing is available after this app is installed from Google Play.";changed();return;
+        }
         List<ProductDetails.OneTimePurchaseOfferDetails> offers=details.getOneTimePurchaseOfferDetailsList();
-        if(offers==null||offers.isEmpty()){message="The Premium purchase is not available yet.";changed();return;}
+        if(offers==null||offers.isEmpty()){
+            if(BuildConfig.DEBUG){debugUnlock();return;}
+            message="The Premium purchase is not available yet.";changed();return;
+        }
         BillingFlowParams.ProductDetailsParams product=BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(details).setOfferToken(offers.get(0).getOfferToken()).build();
         BillingResult result=client.launchBillingFlow(activity,BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(Collections.singletonList(product)).build());
-        if(result.getResponseCode()!=BillingClient.BillingResponseCode.OK){message="Google Play could not open the purchase. Please try again.";changed();}
+        if(result.getResponseCode()!=BillingClient.BillingResponseCode.OK){
+            if(BuildConfig.DEBUG){debugUnlock();return;}
+            message="Google Play could not open the purchase. Please try again.";changed();
+        }
     }
 
-    void restore(){message="Checking your Google Play purchases…";changed();queryPurchases(true);}
+    void restore(){
+        if(BuildConfig.DEBUG&&!connected){debugUnlock();return;}
+        message="Checking your Google Play purchases…";changed();queryPurchases(true);
+    }
 
     void debugUnlock() {
         if(!BuildConfig.DEBUG)return;

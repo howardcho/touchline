@@ -1,12 +1,12 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.agedskaters.touchline'
-    compileSdk 35
+    namespace 'com.agedathletics.touchline'
+    compileSdk 36
     defaultConfig {
-        applicationId 'com.agedskaters.touchline'
+        applicationId 'com.agedathletics.touchline'
         minSdk 26
-        targetSdk 35
+        targetSdk 36
         versionCode 2
         versionName '1.0'
     }

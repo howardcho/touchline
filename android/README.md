@@ -33,7 +33,7 @@ Install and launch:
 ```sh
 "$ANDROID_HOME/platform-tools/adb" devices
 "$ANDROID_HOME/platform-tools/adb" install -r android/app/build/outputs/apk/debug/app-debug.apk
-"$ANDROID_HOME/platform-tools/adb" shell am start -n com.agedskaters.touchline/.MainActivity
+"$ANDROID_HOME/platform-tools/adb" shell am start -n com.agedathletics.touchline/.MainActivity
 ```
 
 Use `adb -s SERIAL ...` if more than one device is attached. The development APK uses the standard local Android debug signing key. Keep the same debug key for updates; use a dedicated protected release key for distribution. Do not commit private signing keys or `local.properties`.
