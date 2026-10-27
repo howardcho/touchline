@@ -1,4 +1,5 @@
-import {settleSession,prepareSessionGame,canStartGame,finishSession} from './session.mjs';
+import {settleSession,prepareSessionGame,canStartGame,finishSession,sessionBoundary} from './session.mjs';
+import {armSessionAccess,configureSessionAccess} from './access.mjs';
 import {beginSessionTracking,registerSessionTeams,beginGameTracking,accrueGameTracking,pauseGameTracking,completeGameTracking,discardGameTracking} from './stats.mjs';
 export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
@@ -47,11 +48,12 @@ export function settle(state, now) {
   if(state.phase==='countdown' && !state.finished) {
     if(!state.running)return settleSession(state,now,settleRotation);
     if(state.deadline>now){
-      if(Number.isFinite(state.endAt)&&now>=state.endAt)return finishSession(state,state.endAt);
+      const boundary=sessionBoundary(state);
+      if(boundary&&now>=boundary.endAt)return finishSession(state,boundary.endAt,boundary.reason);
       state.remaining=state.deadline-now;return state;
     }
     const kickoff=state.deadline,duration=state.openingGameMs??state.gameMs;
-    if(!canStartGame(state,kickoff,duration))return finishSession(state,kickoff,kickoff>=state.endAt?'end-time':'insufficient-time');
+    if(!canStartGame(state,kickoff,duration)){const boundary=sessionBoundary(state);return finishSession(state,kickoff,boundary&&kickoff>=boundary.endAt?boundary.reason:'insufficient-time');}
     if(state.pendingTeams){const pending=state.pendingTeams;beginTeamCycle(state,pending.teams,pending.colors);}
     state.phase='game';state.phaseStarted=false;state.remaining=duration;state.phaseMs=duration;
     state.countdownDone=true;delete state.openingGameMs;
@@ -66,6 +68,8 @@ function settleRotation(state, now) {
   const gameMs = state.gameMs ?? GAME_MS, changeMs = state.changeMs ?? CHANGE_MS;
   if(state.phase==='game' && !state.currentGameStat)beginGameTracking(state,state.deadline-(state.phaseMs??gameMs),playingColors(state));
   while (state.deadline <= now) {
+    const ending=sessionBoundary(state);
+    if(ending?.endMode==='hard'&&state.deadline===ending.endAt)return finishSession(state,ending.endAt,ending.reason);
     const boundary=state.deadline;
     if (state.phase === 'game') {
       completeGameTracking(state,boundary);
@@ -77,19 +81,24 @@ function settleRotation(state, now) {
       state.game++;state.phase='game';state.phaseStarted=true;state.phaseMs=gameMs;state.deadline=boundary+gameMs;
       beginGameTracking(state,boundary,playingColors(state));
     }
+    const nextEnding=sessionBoundary(state);
+    if(nextEnding?.endMode==='hard'&&state.deadline>nextEnding.endAt){
+      state.deadline=nextEnding.endAt;state.phaseMs=Math.max(0,state.deadline-boundary);
+    }
   }
   if(state.phase==='game')accrueGameTracking(state,now);
   state.remaining = state.deadline-now;
   return state;
 }
 export function toggle(state, now) {
+  armSessionAccess(state,now);
   settle(state, now);
   if(state.finished)return state;
   if(!state.running && state.phase==='game' && state.game===1 && !state.phaseStarted && state.startCountdown && !state.countdownDone){
     if(!prepareSessionGame(state,now+5000))return state;
     state.openingGameMs=state.remaining;state.phase='countdown';state.phaseStarted=true;state.phaseMs=5000;state.remaining=5000;
   } else if(!state.running && state.phase==='countdown'){
-    if(!canStartGame(state,now+state.remaining,state.openingGameMs??state.gameMs))return finishSession(state,now,now>=state.endAt?'end-time':'insufficient-time');
+    if(!canStartGame(state,now+state.remaining,state.openingGameMs??state.gameMs)){const boundary=sessionBoundary(state);return finishSession(state,now,boundary&&now>=boundary.endAt?boundary.reason:'insufficient-time');}
   } else if(!state.running && !prepareSessionGame(state,now))return state;
   const wasRunning=state.running;
   state.running = !state.running;
@@ -159,13 +168,15 @@ export function adjustTime(state, delta, now) {
   state.remaining = Math.max(1000, Math.min(MAX_DURATION_MS, state.remaining + delta));
   const duration = state.phase==='game' ? state.gameMs : state.changeMs;
   state.phaseMs = Math.max(state.phaseMs ?? duration, state.remaining);
-  if(state.endMode==='hard' && Number.isFinite(state.endAt))state.remaining=Math.min(state.remaining,Math.max(0,state.endAt-now));
+  const boundary=sessionBoundary(state);
+  if(boundary?.endMode==='hard')state.remaining=Math.min(state.remaining,Math.max(0,boundary.endAt-now));
   if(state.running) state.deadline = now + state.remaining;
   return state;
 }
 
 export function beginTeamCycle(state, teams, colors, running=false, kickoff=null, manual=false) {
   if(!TEAM_COUNTS.includes(teams) || !validColors(teams,colors)) throw new Error('Choose between 2 and 5 teams with unique colors.');
+  const previousTeams=state.teams;
   const history=[...(state.teamHistory || [])];
   const completed=state.phase==='changeover' || manual ? state.game : Math.max(0,state.game-1);
   if(completed>0) history.push({teams:state.teams,colors:{...state.colors},lastGame:completed});
@@ -173,8 +184,17 @@ export function beginTeamCycle(state, teams, colors, running=false, kickoff=null
   const next=fresh(teams,colors,state.gameMs,state.changeMs);
   delete state.pendingTeams;
   Object.assign(state,next,{teamHistory:history,segment,sessionRoster:true});
+  configureSessionAccess(state,state.premiumUnlocked);
+  if(previousTeams!==3&&teams===3&&!state.premiumUnlocked)delete state.accessEndAt;
+  if(running)armSessionAccess(state,kickoff);
   registerSessionTeams(state,Object.values(colors));
-  if(running){state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;beginGameTracking(state,kickoff,playingColors(state));}
+  if(running){
+    state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;
+    const ending=sessionBoundary(state);
+    if(ending?.endMode==='hard')state.deadline=Math.min(state.deadline,ending.endAt);
+    state.phaseMs=state.remaining=state.deadline-kickoff;
+    beginGameTracking(state,kickoff,playingColors(state));
+  }
   return state;
 }
 export function changeTeamRoster(state, action, color, now) {

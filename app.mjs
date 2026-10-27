@@ -1,4 +1,5 @@
-import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame} from './session.mjs';
+import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame,sessionBoundary} from './session.mjs';
+import {requiresPremium,configureSessionAccess,FREE_THREE_TEAM_MS} from './access.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
@@ -10,7 +11,7 @@ const KEY = 'touchline-session-v1';
 const sounds = createMatchSounds();
 const nativeHost=globalThis.touchlineNative ?? globalThis.webkit?.messageHandlers?.touchlineHost;
 const premiumHost=nativeHost?.premium;
-const basePremium={enabled:false,ready:true,unlocked:true,price:'$9.99',testMode:false,pending:false,message:''};
+const basePremium={enabled:false,ready:true,purchasable:true,unlocked:true,price:'$9.99',testMode:false,pending:false,message:''};
 let premium={...basePremium,...(premiumHost?.status?.()||{})},pendingPremiumTeams=null;
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
@@ -61,9 +62,9 @@ function render() {
     const count=Number(button.dataset.teams), profile=profileFor(preferences,count), colors=colorsForTeams(count,profile.colors);
     button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
     button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
-    const locked=premium.enabled&&!premium.unlocked&&count>2;
-    button.setAttribute('data-premium',locked?'locked':'open');
-    button.querySelector('.arrow').textContent=locked?'PREMIUM':'↗';
+    const locked=premium.enabled&&!premium.unlocked&&requiresPremium(count),limited=premium.enabled&&!premium.unlocked&&count===3;
+    button.setAttribute('data-premium',locked?'locked':limited?'limited':'open');
+    button.querySelector('.arrow').textContent=locked?'PREMIUM':limited?'30 MIN FREE':'↗';
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
@@ -105,7 +106,8 @@ function render() {
   $('add-time').disabled=opening||remaining>=MAX_DURATION_MS;
   $('loop-note').textContent=`Loop ${Math.floor((main.game-1)/SCHEDULES[main.teams].length)+1} · Game ${(main.game-1)%SCHEDULES[main.teams].length+1} of ${SCHEDULES[main.teams].length}`;
   const shared=consecutiveColors(state);
-  $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):Number.isFinite(state.endAt)?`Ends ${new Date(state.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[state.endMode]}`:'';
+  const boundary=sessionBoundary(state),freeLimit=state.accessLimitMs===FREE_THREE_TEAM_MS;
+  $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':state.finishReason==='free-limit'?'Free 3-team session complete · 30-minute limit reached.':'Session complete · End time reached.'):freeLimit?(Number.isFinite(state.accessEndAt)?`Free 3-team session · Ends ${new Date(state.accessEndAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`:'Free 3-team session · 30-minute limit starts with the session'):boundary?`Ends ${new Date(boundary.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[boundary.endMode]}`:'';
   if(state.finished){
     iconButtonLabel('end-session','View session summary','summary','View summary');
     iconButtonLabel('end-session-clock','View session summary','summary');
@@ -126,14 +128,15 @@ function render() {
 function renderPremium() {
   $('premium-price').textContent=premium.price||'$9.99';
   $('premium-status').textContent=premium.message||(premium.pending?'Purchase pending. Premium unlocks after Google Play confirms payment.':premium.ready?'':'Connecting to Google Play…');
-  $('buy-premium').disabled=!premium.ready||premium.unlocked||premium.pending;
+  $('buy-premium').disabled=!premium.purchasable||premium.unlocked||premium.pending;
   $('restore-premium').disabled=!premium.ready;
   $('debug-premium').hidden=!premium.testMode;$('debug-premium').disabled=premium.unlocked;
 }
 function openPremium(teams=null) {pendingPremiumTeams=teams;renderPremium();$('premium-dialog').showModal();}
 globalThis.touchlinePremiumUpdated=status=>{
   premium={...basePremium,...premium,...(status||{})};render();renderPremium();
-  if(premium.enabled&&premium.ready&&!premium.unlocked&&state?.teams>2){state=null;persist();render();openPremium();}
+  if(state)configureSessionAccess(state,premium.unlocked);
+  if(premium.enabled&&premium.ready&&!premium.unlocked&&requiresPremium(state?.teams)){state=null;persist();render();openPremium();}
   if(premium.unlocked&&$('premium-dialog').open){$('premium-dialog').close();const teams=pendingPremiumTeams;pendingPremiumTeams=null;if(teams)document.querySelector(`[data-teams="${teams}"]`)?.click();}
 };
 function announce(text) { $('announcement').textContent=text; }
@@ -153,7 +156,7 @@ function cueAudible(cue) {
   return soundEnabled(preferences,cue);
 }
 function tick() {
-  if(!state || state.finished || (!state.running && !Number.isFinite(state.endAt))) return;
+  if(!state || state.finished || (!state.running && !sessionBoundary(state))) return;
   const before={...state}, now=Date.now();settle(state,now);
   const leadCue=timerLeadCue(before,state);
   if(leadCue && cueAudible(leadCue) && document.visibilityState==='visible')sounds.prime();
@@ -177,12 +180,13 @@ function tick() {
 }
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
-  if(premium.enabled&&!premium.unlocked&&teams>2){openPremium(teams);return;}
+  if(premium.enabled&&!premium.unlocked&&requiresPremium(teams)){openPremium(teams);return;}
   selectProfile(preferences,teams);
   const now=Date.now();let ending,elapsedEnd=false;
   try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
   state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown};
+  configureSessionAccess(state,premium.unlocked);
   persist();render();$('start').focus();
   if(elapsedEnd)announce('The saved end time has passed. This session will run continuously unless you set a new end time in Session timing.');
 });
@@ -212,7 +216,7 @@ function openRosterPicker(action) {
   tick();
   const current=Object.values(state.pendingTeams?.colors || state.colors);
   if((action==='add' && current.length>=5)||(action==='remove' && current.length<=2))return;
-  if(action==='add'&&current.length>=2&&premium.enabled&&!premium.unlocked){openPremium();return;}
+  if(action==='add'&&requiresPremium(current.length+1)&&premium.enabled&&!premium.unlocked){openPremium();return;}
   rosterAction=action;
   const candidates=rosterColorChoices(state,action,preferences.colors);
   $('roster-title').textContent=action==='add'?'Add a team':'Remove a team';
@@ -450,7 +454,7 @@ $('summary-back-to-selection').onclick=()=>{$('session-summary-dialog').close();
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
 });
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,premiumUnlocked:!!state.premiumUnlocked,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{}),...(Number.isFinite(state.accessEndAt)?{accessEndAt:state.accessEndAt,accessLimitMs:state.accessLimitMs}:{})};configureSessionAccess(state,premium.unlocked);persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
@@ -488,6 +492,6 @@ $('wake').onchange=async()=>{wantWake=$('wake').checked;preferences.keepAwake=wa
 if(!nativeHost && !('wakeLock' in navigator)) { $('wake').disabled=true; $('wake-status').textContent='Not supported in this browser'; }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')sounds.stop();if(document.visibilityState==='visible'){tick();if(wantWake&&!wakeLock)acquireWake();}persist();});
 window.addEventListener('pagehide',persist);
-restore();if(state)settle(state,Date.now());persist();render();setInterval(tick,200);setInterval(()=>{if(state?.running)persist();},5000);
+restore();if(state){configureSessionAccess(state,premium.unlocked);settle(state,Date.now());}persist();render();setInterval(tick,200);setInterval(()=>{if(state?.running)persist();},5000);
 if(nativeHost)$('install-button').hidden=true;
 if(!nativeHost && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});

@@ -2,6 +2,14 @@ import {finishSessionTracking} from './stats.mjs';
 
 export const END_MODES = ['hard','soft','full'];
 export const validEndTime = value => typeof value==='string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+export function sessionBoundary(state) {
+  const configured=Number.isFinite(state.endAt)?state.endAt:Infinity;
+  const access=Number.isFinite(state.accessEndAt)?state.accessEndAt:Infinity;
+  const endAt=Math.min(configured,access);
+  if(!Number.isFinite(endAt))return null;
+  if(access<=configured)return {endAt,endMode:'hard',minGameMs:1000,reason:'free-limit'};
+  return {endAt,endMode:state.endMode,minGameMs:state.minGameMs,reason:'end-time'};
+}
 export function resolveSessionEnd(preferences, now=Date.now(), allowElapsed=false) {
   if(!preferences.endEnabled)return {};
   if(!validEndTime(preferences.endTime))throw new Error('Choose a session end time.');
@@ -42,22 +50,24 @@ export function finishSession(state, at, reason='end-time') {
   return state;
 }
 export function canStartGame(state, at, duration=state.gameMs) {
-  if(!Number.isFinite(state.endAt))return true;
-  const available=state.endAt-at;
-  if(state.endMode==='full')return available>=duration;
-  if(state.endMode==='hard')return available>=Math.min(state.minGameMs??120000,duration);
+  const boundary=sessionBoundary(state);
+  if(!boundary)return true;
+  const available=boundary.endAt-at;
+  if(boundary.endMode==='full')return available>=duration;
+  if(boundary.endMode==='hard')return available>=Math.min(boundary.minGameMs??120000,duration);
   return available>0;
 }
 export function prepareSessionGame(state, now) {
   if(state.finished)return false;
-  if(!Number.isFinite(state.endAt))return true;
+  const boundary=sessionBoundary(state);
+  if(!boundary)return true;
   const resumed=state.phase==='game' && state.phaseStarted;
   if(!resumed && !canStartGame(state,now,state.remaining)) {
-    finishSession(state,now,now>=state.endAt?'end-time':'insufficient-time');return false;
+    finishSession(state,now,now>=boundary.endAt?boundary.reason:'insufficient-time');return false;
   }
-  if(state.endMode==='hard') {
-    if(now>=state.endAt){finishSession(state,state.endAt);return false;}
-    state.remaining=Math.min(state.remaining,state.endAt-now);
+  if(boundary.endMode==='hard') {
+    if(now>=boundary.endAt){finishSession(state,boundary.endAt,boundary.reason);return false;}
+    state.remaining=Math.min(state.remaining,boundary.endAt-now);
     if(!state.phaseStarted)state.phaseMs=state.remaining;
   }
   return true;
@@ -66,23 +76,29 @@ export function prepareSessionGame(state, now) {
 // rotation path when there is no end time; otherwise process exact boundaries.
 export function settleSession(state, now, advance) {
   if(state.finished)return state;
-  if(!Number.isFinite(state.endAt))return advance(state,now);
+  let boundary=sessionBoundary(state);
+  if(!boundary)return advance(state,now);
   if(!state.running) {
-    if(now>=state.endAt && (state.endMode==='hard' || state.phase!=='game' || !state.phaseStarted))finishSession(state,state.endAt);
+    if(now>=boundary.endAt && (boundary.endMode==='hard' || state.phase!=='game' || !state.phaseStarted))finishSession(state,boundary.endAt,boundary.reason);
     return state;
   }
-  if(state.endMode==='hard')state.deadline=Math.min(state.deadline,state.endAt);
+  if(boundary.endMode==='hard')state.deadline=Math.min(state.deadline,boundary.endAt);
   while(state.running && state.deadline<=now) {
     const boundary=state.deadline;
     if(state.phase==='game') {
       if(!canStartGame(state,boundary+state.changeMs)) {
-        return finishSession(state,boundary,boundary>=state.endAt?'end-time':'insufficient-time');
+        const ending=sessionBoundary(state);
+        return finishSession(state,boundary,ending&&boundary>=ending.endAt?ending.reason:'insufficient-time');
       }
       advance(state,boundary);
     } else {
-      if(!canStartGame(state,boundary))return finishSession(state,boundary,boundary>=state.endAt?'end-time':'insufficient-time');
+      if(!canStartGame(state,boundary)){
+        const ending=sessionBoundary(state);
+        return finishSession(state,boundary,ending&&boundary>=ending.endAt?ending.reason:'insufficient-time');
+      }
       advance(state,boundary);
-      if(state.endMode==='hard'){state.deadline=Math.min(state.deadline,state.endAt);state.phaseMs=state.deadline-boundary;}
+      const ending=sessionBoundary(state);
+      if(ending?.endMode==='hard'){state.deadline=Math.min(state.deadline,ending.endAt);state.phaseMs=state.deadline-boundary;}
     }
   }
   state.remaining=state.deadline-now;

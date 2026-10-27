@@ -38,6 +38,19 @@ Install and launch:
 
 Use `adb -s SERIAL ...` if more than one device is attached. The development APK uses the standard local Android debug signing key. Keep the same debug key for updates; use a dedicated protected release key for distribution. Do not commit private signing keys or `local.properties`.
 
+## Google Play Premium unlock
+
+Two-team sessions are unlimited. Three-team sessions are free for 30 minutes. The permanent four- and five-team unlock uses the Google Play one-time product ID `premium_unlock`.
+
+In Google Play Console:
+
+1. Open **Monetize with Play → Products → One-time products** and create `premium_unlock`.
+2. Add and activate a **Buy** purchase option, set its regional price (currently $9.99 in the US), and make the product active.
+3. Upload a signed App Bundle to an internal, closed, open, or production track. Add the tester to that track and to **Settings → License testing**.
+4. Install Touchline from that track's Play Store link with the tester's Google account. A locally installed debug APK cannot run a real Play purchase; it provides a test unlock instead.
+
+The application ID in Play Console and this project must both be `com.agedathletics.touchline`. Each upload needs a higher `versionCode`. Purchases are acknowledged after Google Play reports `PURCHASED`; pending transactions stay locked, and **Restore purchase** rechecks the current Play account. Product, connection, and purchase response codes are logged under `TouchlineBilling` for device diagnostics.
+
 ## Music and audio ducking
 
 The timer primes `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` 0.5 seconds before predictable cues, then plays the recording at its exact timer threshold. A cue triggered directly by a button uses the same 0.5-second lead-in. Focus is abandoned after the final cue and a 1.1-second gap. This gives important announcements a clear lead-in and keeps music reduced through closely spaced countdown, whistle, and callout clips. Pausing or leaving the foreground cancels queued audio and releases focus. Android 15+ requires Touchline to be visible for these focus requests; there is no background service.
@@ -53,7 +66,7 @@ To verify: start music, open Touchline, go to selection → Settings → Audio, 
 - Android Back closes a dialog, returns from the large clock to the board, then returns to team selection. From selection it leaves the app.
 - Keep screen awake uses the native Android screen flag while the app is visible. Turning it off restores the device's normal timeout.
 - The WebView serves only packaged resources at a fixed local HTTPS origin. The app requests no internet, microphone, storage, notification, or account permissions. Debug builds allow WebView inspection; release builds disable it.
-- External credit links open in the device browser. No store upload or public publishing is part of this project setup.
+- External credit links open in the device browser.
 
 ## Project layout
 
@@ -67,4 +80,4 @@ Continue to edit the web source at the repository root. Rebuild Android to inclu
 
 ## Verified build
 
-The development build was installed and launched on a Pixel 10. Offline startup and native audio were checked, and Spotify ducking/restoration was confirmed on the device. The shared automated suite passes 105 tests; Android debug assembly and lint complete successfully.
+The development build was installed and launched on a Pixel 10. Offline startup and native audio were checked, and Spotify ducking/restoration was confirmed on the device. The shared automated suite passes 122 tests; Android debug and release assembly complete successfully.
