@@ -40,7 +40,7 @@ Use `adb -s SERIAL ...` if more than one device is attached. The development APK
 
 ## Google Play Premium unlock
 
-Two-team sessions are unlimited. Three-team sessions are free for 30 minutes. The permanent four- and five-team unlock uses the Google Play one-time product ID `premium_unlock`.
+Two- and three-team sessions are free and unlimited. The permanent four- and five-team unlock uses the Google Play one-time product ID `premium_unlock`.
 
 In Google Play Console:
 

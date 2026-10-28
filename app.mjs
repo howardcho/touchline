@@ -1,5 +1,5 @@
 import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame,sessionBoundary} from './session.mjs';
-import {requiresPremium,configureSessionAccess,FREE_THREE_TEAM_MS} from './access.mjs';
+import {requiresPremium,configureSessionAccess} from './access.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
@@ -62,9 +62,9 @@ function render() {
     const count=Number(button.dataset.teams), profile=profileFor(preferences,count), colors=colorsForTeams(count,profile.colors);
     button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
     button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
-    const locked=premium.enabled&&!premium.unlocked&&requiresPremium(count),limited=premium.enabled&&!premium.unlocked&&count===3;
-    button.setAttribute('data-premium',locked?'locked':limited?'limited':'open');
-    button.querySelector('.arrow').textContent=locked?'PREMIUM':limited?'30 MIN FREE':'↗';
+    const locked=premium.enabled&&!premium.unlocked&&requiresPremium(count);
+    button.setAttribute('data-premium',locked?'locked':'open');
+    button.querySelector('.arrow').textContent=locked?'PREMIUM':'↗';
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
@@ -106,8 +106,8 @@ function render() {
   $('add-time').disabled=opening||remaining>=MAX_DURATION_MS;
   $('loop-note').textContent=`Loop ${Math.floor((main.game-1)/SCHEDULES[main.teams].length)+1} · Game ${(main.game-1)%SCHEDULES[main.teams].length+1} of ${SCHEDULES[main.teams].length}`;
   const shared=consecutiveColors(state);
-  const boundary=sessionBoundary(state),freeLimit=state.accessLimitMs===FREE_THREE_TEAM_MS;
-  $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':state.finishReason==='free-limit'?'Free 3-team session complete · 30-minute limit reached.':'Session complete · End time reached.'):freeLimit?(Number.isFinite(state.accessEndAt)?`Free 3-team session · Ends ${new Date(state.accessEndAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`:'Free 3-team session · 30-minute limit starts with the session'):boundary?`Ends ${new Date(boundary.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[boundary.endMode]}`:'';
+  const boundary=sessionBoundary(state);
+  $('session-end-note').textContent=state.finished?(state.finishReason==='insufficient-time'?'Session complete · Not enough time for another game.':'Session complete · End time reached.'):boundary?`Ends ${new Date(boundary.endAt).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[boundary.endMode]}`:'';
   if(state.finished){
     iconButtonLabel('end-session','View session summary','summary','View summary');
     iconButtonLabel('end-session-clock','View session summary','summary');
@@ -454,7 +454,7 @@ $('summary-back-to-selection').onclick=()=>{$('session-summary-dialog').close();
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
 });
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,premiumUnlocked:!!state.premiumUnlocked,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{}),...(Number.isFinite(state.accessEndAt)?{accessEndAt:state.accessEndAt,accessLimitMs:state.accessLimitMs}:{})};configureSessionAccess(state,premium.unlocked);persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,premiumUnlocked:!!state.premiumUnlocked,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};configureSessionAccess(state,premium.unlocked);persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};

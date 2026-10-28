@@ -1,5 +1,5 @@
 import {settleSession,prepareSessionGame,canStartGame,finishSession,sessionBoundary} from './session.mjs';
-import {armSessionAccess,configureSessionAccess} from './access.mjs';
+import {configureSessionAccess} from './access.mjs';
 import {beginSessionTracking,registerSessionTeams,beginGameTracking,accrueGameTracking,pauseGameTracking,completeGameTracking,discardGameTracking} from './stats.mjs';
 export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
@@ -91,7 +91,6 @@ function settleRotation(state, now) {
   return state;
 }
 export function toggle(state, now) {
-  armSessionAccess(state,now);
   settle(state, now);
   if(state.finished)return state;
   if(!state.running && state.phase==='game' && state.game===1 && !state.phaseStarted && state.startCountdown && !state.countdownDone){
@@ -176,7 +175,6 @@ export function adjustTime(state, delta, now) {
 
 export function beginTeamCycle(state, teams, colors, running=false, kickoff=null, manual=false) {
   if(!TEAM_COUNTS.includes(teams) || !validColors(teams,colors)) throw new Error('Choose between 2 and 5 teams with unique colors.');
-  const previousTeams=state.teams;
   const history=[...(state.teamHistory || [])];
   const completed=state.phase==='changeover' || manual ? state.game : Math.max(0,state.game-1);
   if(completed>0) history.push({teams:state.teams,colors:{...state.colors},lastGame:completed});
@@ -185,8 +183,6 @@ export function beginTeamCycle(state, teams, colors, running=false, kickoff=null
   delete state.pendingTeams;
   Object.assign(state,next,{teamHistory:history,segment,sessionRoster:true});
   configureSessionAccess(state,state.premiumUnlocked);
-  if(previousTeams!==3&&teams===3&&!state.premiumUnlocked)delete state.accessEndAt;
-  if(running)armSessionAccess(state,kickoff);
   registerSessionTeams(state,Object.values(colors));
   if(running){
     state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;

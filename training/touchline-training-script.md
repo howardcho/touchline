@@ -8,7 +8,7 @@ Welcome to Touchline. In the next few minutes, you will learn every control you 
 
 ## 2. Choose a rotation
 
-Start on the selection screen and choose two, three, four, or five teams. Two-team sessions are free and unlimited. Three teams are free for thirty minutes. Four and five teams require the one-time Premium unlock. Each card also shows that team count’s saved colours, game time, and changeover time.
+Start on the selection screen and choose two, three, four, or five teams. Two- and three-team sessions are free and unlimited. Four and five teams require the one-time Premium unlock. Each card also shows that team count’s saved colours, game time, and changeover time.
 
 ## 3. Save game defaults
 

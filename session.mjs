@@ -3,12 +3,8 @@ import {finishSessionTracking} from './stats.mjs';
 export const END_MODES = ['hard','soft','full'];
 export const validEndTime = value => typeof value==='string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 export function sessionBoundary(state) {
-  const configured=Number.isFinite(state.endAt)?state.endAt:Infinity;
-  const access=Number.isFinite(state.accessEndAt)?state.accessEndAt:Infinity;
-  const endAt=Math.min(configured,access);
-  if(!Number.isFinite(endAt))return null;
-  if(access<=configured)return {endAt,endMode:'hard',minGameMs:1000,reason:'free-limit'};
-  return {endAt,endMode:state.endMode,minGameMs:state.minGameMs,reason:'end-time'};
+  if(!Number.isFinite(state.endAt))return null;
+  return {endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs,reason:'end-time'};
 }
 export function resolveSessionEnd(preferences, now=Date.now(), allowElapsed=false) {
   if(!preferences.endEnabled)return {};
