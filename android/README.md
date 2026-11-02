@@ -38,18 +38,9 @@ Install and launch:
 
 Use `adb -s SERIAL ...` if more than one device is attached. The development APK uses the standard local Android debug signing key. Keep the same debug key for updates; use a dedicated protected release key for distribution. Do not commit private signing keys or `local.properties`.
 
-## Google Play Premium unlock
+## Google Play releases
 
-Two- and three-team sessions are free and unlimited. The permanent four- and five-team unlock uses the Google Play one-time product ID `premium_unlock`.
-
-In Google Play Console:
-
-1. Open **Monetize with Play → Products → One-time products** and create `premium_unlock`.
-2. Add and activate a **Buy** purchase option, set its regional price (currently $9.99 in the US), and make the product active.
-3. Upload a signed App Bundle to an internal, closed, open, or production track. Add the tester to that track and to **Settings → License testing**.
-4. Install Touchline from that track's Play Store link with the tester's Google account. A locally installed debug APK cannot run a real Play purchase; it provides a test unlock instead.
-
-The application ID in Play Console and this project must both be `com.agedathletics.touchline`. Each upload needs a higher `versionCode`. Purchases are acknowledged after Google Play reports `PURCHASED`; pending transactions stay locked, and **Restore purchase** rechecks the current Play account. Product, connection, and purchase response codes are logged under `TouchlineBilling` for device diagnostics.
+Touchline is free and all two- through five-team rotations are unlimited. The application ID in Play Console and this project must both be `com.agedathletics.touchline`. Each App Bundle upload needs a higher `versionCode`.
 
 ## Music and audio ducking
 
@@ -80,4 +71,4 @@ Continue to edit the web source at the repository root. Rebuild Android to inclu
 
 ## Verified build
 
-The development build was installed and launched on a Pixel 10. Offline startup and native audio were checked, and Spotify ducking/restoration was confirmed on the device. The shared automated suite passes 122 tests; Android debug and release assembly complete successfully.
+The development build was installed and launched on a Pixel 10. Offline startup and native audio were checked, and Spotify ducking/restoration was confirmed on the device. The shared automated suite passes 117 tests; Android debug and release assembly complete successfully.

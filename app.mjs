@@ -1,5 +1,4 @@
 import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame,sessionBoundary} from './session.mjs';
-import {requiresPremium,configureSessionAccess} from './access.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
@@ -10,9 +9,6 @@ let state = null, wakeLock = null, wantWake = false, preparingStart = false;
 const KEY = 'touchline-session-v1';
 const sounds = createMatchSounds();
 const nativeHost=globalThis.touchlineNative ?? globalThis.webkit?.messageHandlers?.touchlineHost;
-const premiumHost=nativeHost?.premium;
-const basePremium={enabled:false,ready:true,purchasable:true,unlocked:true,price:'$9.99',testMode:false,pending:false,message:''};
-let premium={...basePremium,...(premiumHost?.status?.()||{})},pendingPremiumTeams=null;
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
 wantWake=preferences.keepAwake;$('wake').checked=wantWake;
@@ -62,9 +58,7 @@ function render() {
     const count=Number(button.dataset.teams), profile=profileFor(preferences,count), colors=colorsForTeams(count,profile.colors);
     button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
     button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
-    const locked=premium.enabled&&!premium.unlocked&&requiresPremium(count);
-    button.setAttribute('data-premium',locked?'locked':'open');
-    button.querySelector('.arrow').textContent=locked?'PREMIUM':'↗';
+    button.querySelector('.arrow').textContent='↗';
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
@@ -125,20 +119,6 @@ function render() {
   if(preparingStart)$('start').textContent='Preparing audio…';
   $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
-function renderPremium() {
-  $('premium-price').textContent=premium.price||'$9.99';
-  $('premium-status').textContent=premium.message||(premium.pending?'Purchase pending. Premium unlocks after Google Play confirms payment.':premium.ready?'':'Connecting to Google Play…');
-  $('buy-premium').disabled=!premium.purchasable||premium.unlocked||premium.pending;
-  $('restore-premium').disabled=!premium.ready;
-  $('debug-premium').hidden=!premium.testMode;$('debug-premium').disabled=premium.unlocked;
-}
-function openPremium(teams=null) {pendingPremiumTeams=teams;renderPremium();$('premium-dialog').showModal();}
-globalThis.touchlinePremiumUpdated=status=>{
-  premium={...basePremium,...premium,...(status||{})};render();renderPremium();
-  if(state)configureSessionAccess(state,premium.unlocked);
-  if(premium.enabled&&premium.ready&&!premium.unlocked&&requiresPremium(state?.teams)){state=null;persist();render();openPremium();}
-  if(premium.unlocked&&$('premium-dialog').open){$('premium-dialog').close();const teams=pendingPremiumTeams;pendingPremiumTeams=null;if(teams)document.querySelector(`[data-teams="${teams}"]`)?.click();}
-};
 function announce(text) { $('announcement').textContent=text; }
 function playCue(cue) {
   if(!cue || document.visibilityState!=='visible')return;
@@ -172,7 +152,7 @@ function tick() {
     if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
     announce(`${count}. Next game starts soon.`);
   }
-  if(!before.finished && state.finished){sounds.stop();playCue(cue);announce('Session complete.');persist();render();openSessionSummary();return;}
+  if(!before.finished && state.finished){sounds.stop();playCue(cue);persist();render();announce('Session complete.');openSessionSummary();return;}
   if(before.game!==state.game || before.phase!==state.phase || before.segment!==state.segment) {
     announce(state.phase==='changeover'?`Game ${state.game} finished. Changeover: ${formatTime(state.changeMs)}.`:`Game ${state.game}. ${[...matchup(state.teams,state.game)].map(colorName).join(' versus ')}.`);persist();
   }
@@ -180,13 +160,11 @@ function tick() {
 }
 for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('click',()=> {
   const teams=Number(b.dataset.teams);
-  if(premium.enabled&&!premium.unlocked&&requiresPremium(teams)){openPremium(teams);return;}
   selectProfile(preferences,teams);
   const now=Date.now();let ending,elapsedEnd=false;
   try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
   state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown};
-  configureSessionAccess(state,premium.unlocked);
   persist();render();$('start').focus();
   if(elapsedEnd)announce('The saved end time has passed. This session will run continuously unless you set a new end time in Session timing.');
 });
@@ -216,7 +194,6 @@ function openRosterPicker(action) {
   tick();
   const current=Object.values(state.pendingTeams?.colors || state.colors);
   if((action==='add' && current.length>=5)||(action==='remove' && current.length<=2))return;
-  if(action==='add'&&requiresPremium(current.length+1)&&premium.enabled&&!premium.unlocked){openPremium();return;}
   rosterAction=action;
   const candidates=rosterColorChoices(state,action,preferences.colors);
   $('roster-title').textContent=action==='add'?'Add a team':'Remove a team';
@@ -236,9 +213,6 @@ $('roster-form').onsubmit=event=>{
   } catch(error){$('roster-error').textContent=error.message;}
 };
 $('cancel-team-change').onclick=()=>{delete state.pendingTeams;persist();render();announce('Team-count change canceled.');};
-$('buy-premium').onclick=()=>{premium.message='Opening Google Play…';renderPremium();premiumHost?.purchase?.();};
-$('restore-premium').onclick=()=>{premium.message='Checking your Google Play purchases…';renderPremium();premiumHost?.restore?.();};
-$('debug-premium').onclick=()=>premiumHost?.debugUnlock?.();
 $('restart-game').onclick=()=>{
   sounds.stop();restartGame(state);persist();render();
   announce(`Game ${state.game} restarted with ${formatTime(state.gameMs)}. Timer paused.`);
@@ -454,7 +428,7 @@ $('summary-back-to-selection').onclick=()=>{$('session-summary-dialog').close();
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
 });
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,premiumUnlocked:!!state.premiumUnlocked,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};configureSessionAccess(state,premium.unlocked);persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
@@ -492,6 +466,6 @@ $('wake').onchange=async()=>{wantWake=$('wake').checked;preferences.keepAwake=wa
 if(!nativeHost && !('wakeLock' in navigator)) { $('wake').disabled=true; $('wake-status').textContent='Not supported in this browser'; }
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible')sounds.stop();if(document.visibilityState==='visible'){tick();if(wantWake&&!wakeLock)acquireWake();}persist();});
 window.addEventListener('pagehide',persist);
-restore();if(state){configureSessionAccess(state,premium.unlocked);settle(state,Date.now());}persist();render();setInterval(tick,200);setInterval(()=>{if(state?.running)persist();},5000);
+restore();if(state){delete state.premiumUnlocked;delete state.accessLimitMs;delete state.accessEndAt;if(state.finishReason==='premium-limit'){delete state.finished;delete state.finishedAt;delete state.finishReason;state.running=false;state.deadline=null;state.remaining=state.phase==='game'?state.gameMs:state.changeMs;}settle(state,Date.now());}persist();render();setInterval(tick,200);setInterval(()=>{if(state?.running)persist();},5000);
 if(nativeHost)$('install-button').hidden=true;
 if(!nativeHost && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});

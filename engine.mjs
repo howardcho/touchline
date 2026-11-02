@@ -1,5 +1,4 @@
 import {settleSession,prepareSessionGame,canStartGame,finishSession,sessionBoundary} from './session.mjs';
-import {configureSessionAccess} from './access.mjs';
 import {beginSessionTracking,registerSessionTeams,beginGameTracking,accrueGameTracking,pauseGameTracking,completeGameTracking,discardGameTracking} from './stats.mjs';
 export const TEAM_COUNTS = [2,3,4,5];
 export const SCHEDULES = {
@@ -182,7 +181,6 @@ export function beginTeamCycle(state, teams, colors, running=false, kickoff=null
   const next=fresh(teams,colors,state.gameMs,state.changeMs);
   delete state.pendingTeams;
   Object.assign(state,next,{teamHistory:history,segment,sessionRoster:true});
-  configureSessionAccess(state,state.premiumUnlocked);
   registerSessionTeams(state,Object.values(colors));
   if(running){
     state.running=true;state.phaseStarted=true;state.deadline=kickoff+state.gameMs;

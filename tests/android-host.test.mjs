@@ -26,8 +26,6 @@ test('Android bridge uses native audio, preserving payloads and reported failure
  host.postMessage({keepAwake:false});assert.deepEqual(commands.at(-1),{action:'keepAwake',enabled:false});
  host.setClockView(true);host.setClockView(true);host.setClockView(false);
  assert.deepEqual(commands.filter(c=>c.action==='fullscreen'),[{action:'fullscreen',enabled:true},{action:'fullscreen',enabled:false}]);
- assert.equal(host.premium.status(),null);host.premium.purchase();host.premium.restore();host.premium.debugUnlock();
- assert.deepEqual(commands.slice(-4).map(c=>c.action),['premiumStatus','purchasePremium','restorePremium','debugUnlockPremium']);
  await assert.rejects(host.audio.postMessage({action:'bad'}),/Native playback failed/);
  sounds.stop();assert.equal(commands.at(-1).action,'stop');
  assert.equal(createMatchSounds({}).constructor,MatchSounds);
@@ -52,7 +50,8 @@ test('Android offline bundle boots the shared UI and ships the exact audio catal
  });
  vm.runInContext(adapter,context);
  context.touchlineNative=context.window.touchlineNative;
- vm.runInContext(readFileSync(new URL('touchline.js',root),'utf8'),context);
+ const bundledJs=readFileSync(new URL('touchline.js',root),'utf8');
+ vm.runInContext(bundledJs,context);
  assert.equal(element('setup').hidden,false);assert.equal(element('install-button').hidden,true);
  assert.deepEqual(commands.filter(c=>c.action==='fullscreen'),[{action:'fullscreen',enabled:false}]);
  assert.equal(element('setup-time').textContent,'04:00');assert.equal(element('wake').disabled,undefined);
@@ -60,4 +59,7 @@ test('Android offline bundle boots the shared UI and ships the exact audio catal
  const html=readFileSync(new URL('index.html',root),'utf8');
  assert.ok(html.indexOf('android-host.js')<html.indexOf('touchline.js'));
  assert.ok(!html.includes('type="module"'));
+ assert.doesNotMatch(html,/premium|purchase|paywall|billing/i);
+ assert.doesNotMatch(bundledJs,/purchasePremium|restorePremium|requiresPremium|configureSessionAccess/);
+ assert.doesNotMatch(adapter,/purchasePremium|restorePremium|premiumStatus|debugUnlockPremium/);
 });

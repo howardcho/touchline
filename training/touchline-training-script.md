@@ -8,7 +8,7 @@ Welcome to Touchline. In the next few minutes, you will learn every control you 
 
 ## 2. Choose a rotation
 
-Start on the selection screen and choose two, three, four, or five teams. Two- and three-team sessions are free and unlimited. Four and five teams require the one-time Premium unlock. Each card also shows that team count’s saved colours, game time, and changeover time.
+Start on the selection screen and choose two, three, four, or five teams. Every team count is included and unlimited. Each card also shows that team count’s saved colours, game time, and changeover time.
 
 ## 3. Save game defaults
 
@@ -49,8 +49,4 @@ View Rotation and Fairness lists every matchup and explains the schedule. Touchl
 ## 12. Finish with a match report
 
 Tap End Session, shown with the stop icon, and confirm when play is finished. Touchline records partial game time already played, then shows total session time, average playing time, games played, and each team’s playing time. Close the report to review the board, or return to selection for another session.
-
-## 13. Premium and saved purchases
-
-On Android, Premium is a one-time Google Play purchase that unlocks four- and five-team rotations. Use Restore Purchase if the same Google account already owns it. Your settings and active session are stored locally, and the native apps bundle their audio for offline use. That is everything you need to run Touchline to its fullest.
 
