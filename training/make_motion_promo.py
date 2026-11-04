@@ -129,7 +129,7 @@ scenes = [
     dict(start=50.5, kind='stack', cards=['upcoming', 'schedule'], kicker='YOUR NEXT MOVE', title='Jump to\nany game.', body='See the rotation. Tap the matchup. Keep playing.'),
     dict(start=57.5, kind='double', cards=['timing', 'roster'], kicker='PICKUP NEVER STAYS STILL', title='Change the plan.\nKeep the game.', body='Adjust the session. Add a team. Remove a team. No restart.'),
     dict(start=64.5, kind='double', cards=['schedule', 'summary'], kicker='FAIR FROM START TO FINISH', title='Every game counts.', body='Balanced rotations in play. A complete report at the final whistle.'),
-    dict(start=70.5, kind='close', kicker='TOUCHLINE', title='LESS ORGANIZING.\nMORE PLAYING.', body='Join the Android test at AgedAthletics.com'),
+    dict(start=70.5, kind='close', kicker='TOUCHLINE', title='LESS ORGANIZING.\nMORE PLAYING.', body='AgedAthletics.com'),
 ]
 
 blocks = {
@@ -222,7 +222,7 @@ def render_scene(index, local, global_time):
                 flag(draw, x, 820, color, 120, global_time * 3 + number)
         else:
             draw.rounded_rectangle((680, 820, 1240, 892), radius=36, fill=LIME)
-            draw.text((960, 856), 'JOIN THE CLOSED ANDROID TEST  ↗', font=font(19, True), fill=INK, anchor='mm')
+            draw.text((960, 856), 'AGEDATHLETICS.COM  ↗', font=font(19, True), fill=INK, anchor='mm')
         return canvas
 
     if kind == 'clock':
@@ -302,11 +302,6 @@ for frame_number in range(round(TOTAL * FPS)):
     index = scene_index(time)
     local = time - scenes[index]['start']
     frame = render_scene(index, local, time)
-    # A short luminous flash bridges scenes without obscuring the UI during holds.
-    if local < 0.16 and index > 0:
-        strength = round(105 * (1 - local / 0.16))
-        flash = Image.new('RGBA', (W, H), (223, 242, 141, strength))
-        frame = Image.alpha_composite(frame, flash)
     encoder.stdin.write(frame.tobytes())
 encoder.stdin.close()
 if encoder.wait() != 0:
