@@ -174,33 +174,27 @@ for number, scene in enumerate(scenes):
 
 Image.open(FRAMES / '00.png').save(POSTER, quality=91, optimize=True)
 
-# Each composition drifts gently; directional transitions provide the exits.
-fade = 0.72
+# Hold every composition completely still. A short editorial dissolve is the
+# only visual movement, keeping screenshots comfortable to study.
+fade = 0.50
 for index, scene in enumerate(scenes):
     next_start = scenes[index + 1]['start'] if index + 1 < len(scenes) else TOTAL
     duration = next_start - scene['start'] + (fade if index + 1 < len(scenes) else 0)
     source = FRAMES / f'{index:02d}.png'
     clip = CLIPS / f'{index:02d}.mp4'
-    direction = -1 if index % 2 else 1
-    motion = (
-        f"scale=2016:1134,crop={W}:{H}:"
-        f"x='48+{direction}*18*sin(t*0.55)':y='27+9*cos(t*0.43)',format=yuv420p"
-    )
     run('ffmpeg', '-y', '-loglevel', 'error', '-loop', '1', '-framerate', str(FPS), '-i', str(source),
-        '-t', f'{duration:.3f}', '-vf', motion, '-an', '-c:v', 'libx264', '-preset', 'medium',
+        '-t', f'{duration:.3f}', '-vf', 'format=yuv420p', '-an', '-c:v', 'libx264', '-preset', 'medium',
         '-crf', '20', '-pix_fmt', 'yuv420p', '-r', str(FPS), str(clip))
 
 video_only = WORK / 'video-only.mp4'
 command = ['ffmpeg', '-y', '-loglevel', 'error']
 for index in range(len(scenes)):
     command += ['-i', str(CLIPS / f'{index:02d}.mp4')]
-transitions = ['slideleft', 'wipeup', 'slideright', 'smoothleft', 'circleopen', 'wipeleft', 'slideup']
 filters = []
 last = '[0:v]'
 for index in range(1, len(scenes)):
     output = f'[v{index}]'
-    transition = transitions[(index - 1) % len(transitions)]
-    filters.append(f'{last}[{index}:v]xfade=transition={transition}:duration={fade}:offset={scenes[index]["start"]}{output}')
+    filters.append(f'{last}[{index}:v]xfade=transition=fade:duration={fade}:offset={scenes[index]["start"]}{output}')
     last = output
 command += ['-filter_complex', ';'.join(filters), '-map', last, '-t', f'{TOTAL:.3f}',
             '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p',

@@ -1,6 +1,6 @@
 # Touchline motion video
 
-The finished two-minute visual tour is published at `docs/assets/touchline-training.mp4`, with WebVTT captions beside it. It uses the supplied Touchline Break music, animated app screens, short on-screen feature callouts, and the real in-app whistle, warnings, team callout, and crowd audio. There is no narration.
+The finished two-minute visual tour is published at `docs/assets/touchline-training.mp4`, with WebVTT captions beside it. It uses the supplied Touchline Break music, still app compositions with restrained editorial dissolves, short on-screen feature callouts, and the real in-app whistle, warnings, team callout, and crowd audio. There is no narration.
 
 To rebuild the video on macOS:
 
