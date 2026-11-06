@@ -52,11 +52,11 @@
 @media(max-width:540px){#options-dialog{padding:18px}.settings-panel{min-height:360px}#options-dialog #color-fields{grid-template-columns:repeat(3,minmax(0,1fr))}.settings-timing{gap:16px;margin-top:18px}}
 
 #settings-form #settings-audio-panel fieldset{margin-bottom:0}
-@media(max-height:700px){#options-dialog{padding:16px}.settings-heading{margin-bottom:8px}.settings-tabs{margin-bottom:12px}}
+@media(max-height:760px){#options-dialog{padding:16px}.settings-heading{margin-bottom:8px}.settings-tabs{margin-bottom:10px}}
 
 .session-note{font-size:12px;line-height:1.5;color:#60705c;margin:10px 0 16px}.session-note:empty,#setup-error:empty{display:none}#setup-error{color:#a13a2e;font-size:13px}.session-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 12px}.session-fields input{font:inherit;color:var(--green);background:#fffef7;min-height:44px;border:1px solid #b7c3ad;border-radius:9px;padding:8px;width:100%;min-width:0}#settings-session-panel .duration-fields{max-width:290px}#settings-session-panel input:disabled,#settings-session-panel select:disabled{opacity:.45}#board:has(#start:disabled) .queue-card p{visibility:hidden}
 
-@media(max-height:700px){#settings-session-panel .field-help{margin:6px 0 8px}#settings-session-panel .session-fields{margin-bottom:8px}#settings-form #settings-session-panel fieldset{margin-bottom:10px}}
+@media(max-height:760px){#settings-session-panel .field-help{margin:4px 0 7px}#settings-session-panel .session-fields{margin-bottom:6px}#settings-form #settings-session-panel fieldset{margin-bottom:8px}.weekday-picker{margin:4px 0 7px}.settings-save{padding-top:8px}}
 
 /* Per-team-count defaults and session-only duration controls. */
 .profile-picker{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:650;margin:0 0 14px}.profile-picker select{min-height:44px;padding:8px 12px;border:1px solid #b7c3ad;border-radius:9px;background:#fffef7;color:var(--green);font:inherit}.profile-picker span{font-size:11px;font-weight:400;color:#60705c}
@@ -76,7 +76,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 #board.clock-view{position:fixed;inset:var(--safe-top) 0 var(--safe-bottom);z-index:20;background:var(--green);color:#f8f9ee;padding:12px max(24px,var(--safe-right)) 20px max(24px,var(--safe-left));display:grid;grid-template-rows:48px minmax(0,1fr);gap:8px;overflow:auto}
 .clock-view>.board-top{margin:0;gap:12px;align-items:center;justify-content:space-between}
 .clock-view>.board-top::before{content:'TOUCHLINE · MATCH CLOCK';font-size:11px;font-weight:800;letter-spacing:2px;color:#c7d4bd}
-.clock-view .board-top>div:first-child,.clock-view .board-actions>:not(#clock-view-toggle),.clock-view>:is(.session-note,.roster-bar,.team-change-notice,.board-footer,.timer-controls-help,.save-note){display:none}
+.clock-view .board-top>div:first-child,.clock-view>:is(.session-note,.roster-bar,.team-change-notice,.board-footer,.timer-controls-help,.save-note){display:none}
 .clock-view .board-actions{max-width:none;gap:0}.clock-view #clock-view-toggle{width:auto;color:#f8f9ee;border-color:#698571;min-height:44px;padding:9px 16px;font-size:13px}.clock-view #clock-view-toggle:hover{background:#2a5140}
 .clock-view .game-layout{min-height:0;display:grid;grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:16px}
 .clock-view .now-card{min-height:0;padding:0;border-radius:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) 48px;gap:8px 16px;overflow:visible}
@@ -174,7 +174,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 .summary-color{display:inline-block;width:18px;height:18px;border-radius:4px;background:var(--team-color);border:1px solid #183b3030}.summary-letter{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:6px;background:#dff393;color:#183b30;font-style:normal;font-size:13px;font-weight:850}
 .summary-table+.dialog-note{text-align:center}
 @media(max-width:540px){.summary-metrics{grid-template-columns:1fr}.summary-metrics>div{display:flex;align-items:center;justify-content:space-between}.summary-metrics strong{margin:0;font-size:18px}.navigation{flex-wrap:wrap}.navigation .end-session{flex-basis:100%}}
-.clock-view .board-actions>:not(#clock-view-toggle):not(#end-session-clock):not(#upcoming-games){display:none}
+.clock-view .board-actions>:not(#clock-view-toggle):not(#session-timing):not(#end-session-clock):not(#upcoming-games){display:none}
 .clock-view .board-actions #end-session-clock{display:block;width:auto;min-height:44px;padding:9px 16px;font-size:13px;color:#ffd6cd;border-color:#b77a6d}
 
 /* Phone selection keeps all four choices close together. */
@@ -347,7 +347,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 .queue-list-button:hover{background:#e3e9d6}.queue-list-button .control-icon{width:21px;height:21px}
 .clock-view .queue{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}
 .clock-view .queue-list-button{color:#f8f9ee;border-color:#526e5b;background:#264b3c}.clock-view .queue-list-button:hover{background:#315c47}
-.clock-view .board-actions #upcoming-games{display:inline-grid;width:48px;min-width:48px;min-height:48px;padding:0;color:#f8f9ee;border-color:#698571}
+.clock-view .board-actions #session-timing,.clock-view .board-actions #upcoming-games{display:inline-grid;width:48px;min-width:48px;min-height:48px;padding:0;color:#f8f9ee;border-color:#698571}
 .clock-view .board-actions{gap:6px}
 @media(max-width:600px){.queue{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}}
 @media(min-width:360px) and (max-width:649px) and (min-height:780px){
@@ -363,6 +363,7 @@ body:has(#board.clock-view:not([hidden]))>header,body:has(#board.clock-view:not(
 @media(max-height:500px) and (min-width:541px){.clock-view .queue{grid-template-rows:minmax(0,1fr) 44px}}
 
 .session-end-editor{border-top:1px solid var(--line)!important;margin-top:12px!important;padding-top:12px!important}.session-end-editor>.wake-label{margin-top:2px}.session-end-grid{display:grid;grid-template-columns:1.35fr .65fr;gap:16px;align-items:end}.session-end-editor .session-fields{margin:6px 0 0}.session-end-editor #session-min-game{min-width:0}.session-min-title{display:block;font-size:12px;font-weight:600;margin-bottom:6px}.session-end-editor #session-min-game .duration-fields{margin-top:0}.session-end-editor input:disabled,.session-end-editor select:disabled{opacity:.45}
+.weekday-picker{display:flex;align-items:center;gap:10px;margin:8px 0 12px}.weekday-picker>span{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#65715f}.weekday-picker>div{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;flex:1}.weekday-picker button{min-width:0;min-height:38px;padding:6px 3px;border:1px solid #b7c3ad;border-radius:8px;background:#fffef7;color:var(--green);font-size:11px;font-weight:750}.weekday-picker button.selected{background:var(--green);border-color:var(--green);color:#fffef7}.weekday-picker[hidden]{display:none}
 #timing-dialog{max-width:720px;max-height:calc(100dvh - 24px);padding:20px}#timing-dialog .settings-heading{margin-bottom:6px}#timing-dialog>p{margin:5px 0 10px}#timing-dialog .settings-tabs{margin-bottom:12px}#timing-dialog .settings-panel{min-height:350px}#timing-dialog .settings-timing{margin-top:0;gap:18px}#timing-dialog .duration-fields{margin-top:8px;gap:10px}#timing-dialog .field-help{margin:7px 0;line-height:1.45}#timing-dialog #live-audio-panel fieldset{margin:0}.save-live-defaults{display:flex;align-items:center;gap:9px;min-height:44px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;font-weight:650;cursor:pointer}.save-live-defaults input{width:21px;height:21px;accent-color:var(--green)}.timing-actions{margin-top:8px}
 #upcoming-dialog{max-width:680px;padding:24px}#upcoming-dialog h2{margin:4px 0 0}.upcoming-games-list{display:grid;gap:8px;margin-top:16px;max-height:58dvh;overflow:auto;padding:2px}
 .upcoming-game{display:grid;grid-template-columns:72px minmax(0,1fr) 82px;align-items:center;gap:10px;width:100%;min-height:64px;padding:8px 12px;border:1px solid #c8d0c0;border-radius:12px;background:#fffef7;color:var(--green);text-align:left}.upcoming-game:hover{background:#e5edd6}.upcoming-game-number,.upcoming-game-time{font-size:10px;font-weight:800;letter-spacing:.7px}.upcoming-game-time{text-align:right;color:#65715f}.upcoming-game-match{display:block}.upcoming-game .matchup{justify-content:flex-start;gap:10px}.upcoming-game .team-letter{flex-direction:row;font-size:15px;letter-spacing:0;gap:4px}.upcoming-game .team-flag{width:28px;height:23px}.upcoming-game .versus{font-size:12px}

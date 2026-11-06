@@ -3,6 +3,15 @@ import {GAME_MS, CHANGE_MS, MAX_DURATION_MS, validColors, TEAM_COUNTS, completeC
 export const AUDIO_CUES = Object.freeze(['start','minute','thirty','ten','whistle','countdown','lineup']);
 export const WARNING_CUES = Object.freeze(['minute','thirty','ten']);
 export const LABEL_MODES = Object.freeze(['colors','letters']);
+export const WEEKDAYS = Object.freeze([
+  {index:0,short:'Sun',long:'Sunday'},
+  {index:1,short:'Mon',long:'Monday'},
+  {index:2,short:'Tue',long:'Tuesday'},
+  {index:3,short:'Wed',long:'Wednesday'},
+  {index:4,short:'Thu',long:'Thursday'},
+  {index:5,short:'Fri',long:'Friday'},
+  {index:6,short:'Sat',long:'Saturday'}
+]);
 export const labelModeFor = source => LABEL_MODES.includes(source?.labelMode) ? source.labelMode : 'colors';
 const DEFAULT_WARNING_CALLOUTS = Object.freeze({minute:false,thirty:false,ten:true});
 export function soundEnabled(preferences,cue) {
@@ -23,10 +32,31 @@ export function warningCalloutEnabled(settings,cue) {
 }
 export const PREF_KEY = 'touchline-preferences-v1';
 export const durationOK = value => Number.isInteger(value) && value >= 1000 && value <= MAX_DURATION_MS && value % 1000 === 0;
+export function endScheduleFor(source={}) {
+  const fallbackEnabled=typeof source.endEnabled==='boolean'?source.endEnabled:true;
+  const fallbackTime=validEndTime(source.endTime)?source.endTime:'23:59';
+  const raw=source.endSchedule;
+  return {
+    enabled:raw?.enabled===true,
+    days:Object.fromEntries(WEEKDAYS.map(({index})=>{
+      const day=raw?.days?.[index]??raw?.days?.[String(index)]??{};
+      return [index,{
+        enabled:typeof day.enabled==='boolean'?day.enabled:fallbackEnabled,
+        time:validEndTime(day.time)?day.time:fallbackTime
+      }];
+    }))
+  };
+}
+export function endSettingsForDate(source={},now=Date.now()) {
+  const schedule=endScheduleFor(source);
+  if(!schedule.enabled)return {...source,endSchedule:schedule};
+  const day=schedule.days[new Date(now).getDay()];
+  return {...source,endSchedule:schedule,endEnabled:day.enabled,endTime:day.time};
+}
 function normalize(raw, legacy) {
   const setupTeams=TEAM_COUNTS.includes(raw.setupTeams) ? raw.setupTeams : 4;
   const older=raw.colorsByTeams?.[setupTeams] || raw.colorsByTeams?.[5] || {};
-  return {
+  const normalized = {
     setupTeams: TEAM_COUNTS.includes(raw.setupTeams) ? raw.setupTeams : 4,
     gameMs: durationOK(raw.gameMs) ? raw.gameMs : durationOK(legacy) ? legacy : GAME_MS,
     changeMs: durationOK(raw.changeMs) ? raw.changeMs : CHANGE_MS,
@@ -42,8 +72,10 @@ function normalize(raw, legacy) {
     minGameMs: durationOK(raw.minGameMs)?raw.minGameMs:120000,
     colors: validColors(5,raw.colors) ? {...raw.colors} : completeColors(older)
   };
+  normalized.endSchedule=endScheduleFor({...raw,endEnabled:normalized.endEnabled,endTime:normalized.endTime});
+  return normalized;
 }
-const PROFILE_KEYS = ['gameMs','changeMs','colors','labelMode','sounds','crowd','audioCues','warningCallouts','startCountdown','endEnabled','endTime','endMode','minGameMs'];
+const PROFILE_KEYS = ['gameMs','changeMs','colors','labelMode','sounds','crowd','audioCues','warningCallouts','startCountdown','endEnabled','endTime','endSchedule','endMode','minGameMs'];
 export function profileFor(preferences, teams) {
   const source=preferences.profiles?.[teams] ?? preferences;
   return structuredClone(Object.fromEntries(PROFILE_KEYS.map(key=>[key,source[key]])));

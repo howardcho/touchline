@@ -18,7 +18,7 @@ Both apps bundle the interface and all audio for offline use. Native audio ducks
 - Referee whistles, spoken warnings, warning-specific team callouts, and optional stadium crowd.
 - Team naming, session timing, finish rules, and audio can be changed during play; an optional checkbox saves those choices as that team count's defaults.
 - Saved defaults for each team count, plus session-only timing and roster changes.
-- Optional session end time with hard stop, finish-last-game, or full-games-only rules.
+- Optional weekday-specific session end times with hard stop, finish-last-game, or full-games-only rules.
 
 See the [app behavior and schedule guide](native/USER_GUIDE.md) and [audio credits](audio/CREDITS.txt). Complete rotations give equal game counts; two-, three-, and four-team schedules include consecutive appearances, while the five-team loop avoids them.
 

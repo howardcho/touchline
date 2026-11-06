@@ -1,5 +1,5 @@
-import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame,sessionBoundary} from './session.mjs';
-import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, WARNING_CUES, LABEL_MODES, labelModeFor, audioFor, soundEnabled, warningCalloutEnabled} from './preferences.mjs';
+import {resolveSessionEnd,updateSessionEnd,END_MODES,validEndTime,prepareSessionGame,sessionBoundary} from './session.mjs';
+import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, WARNING_CUES, LABEL_MODES, WEEKDAYS, labelModeFor, endScheduleFor, endSettingsForDate, audioFor, soundEnabled, warningCalloutEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
@@ -90,7 +90,8 @@ function render() {
     button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
     button.querySelector('.arrow').textContent='↗';
   }
-  $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
+  const todayDefaults=endSettingsForDate(preferences),todayName=WEEKDAYS[new Date().getDay()].long;
+  $('setup-end-note').textContent=todayDefaults.endEnabled?`${todayDefaults.endSchedule.enabled?todayName+' session end':'Session end'}: ${todayDefaults.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[todayDefaults.endMode]}`:todayDefaults.endSchedule.enabled?`${todayName}: Continuous rotation`:'';
   if(!state) return;
   ensureTeamLabels();
   const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover',opening=phase==='countdown';
@@ -198,7 +199,8 @@ for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('cl
   const teams=Number(b.dataset.teams);
   selectProfile(preferences,teams);
   const now=Date.now();let ending,elapsedEnd=false;
-  try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
+  const endDefaults=endSettingsForDate(preferences,now);
+  try{ending=resolveSessionEnd(endDefaults,now,true);elapsedEnd=endDefaults.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
   const colors=colorsForTeams(teams,preferences.colors);
   state={...fresh(teams,colors,preferences.gameMs,preferences.changeMs),...ending,startCountdown:preferences.startCountdown,audio:audioFor(preferences),labelMode:labelModeFor(preferences),teamLabels:labelsForColors(colors)};
@@ -328,10 +330,10 @@ $('settings-form').addEventListener('invalid',event=>{
   const panel=event.target.closest('[role=tabpanel]');
   if(panel)selectSettingsTab(panel.id==='settings-session-panel'?'session':'game');
 },true);
-let settingsDrafts,settingsTeam;
+let settingsDrafts,settingsTeam,settingsEndDay=new Date().getDay();
 function openSettings() {
   if(state)return;
-  settingsDrafts=structuredClone(preferences.profiles);settingsTeam=preferences.setupTeams;
+  settingsDrafts=structuredClone(preferences.profiles);settingsTeam=preferences.setupTeams;settingsEndDay=new Date().getDay();
   $('defaults-teams').value=settingsTeam;
   selectSettingsTab('game');fillSettings();$('options-dialog').showModal();
 }
@@ -347,7 +349,7 @@ function fillSettings() {
   $('sounds-enabled').checked=source.sounds;
   $('crowd-enabled').checked=source.crowd;
   $('start-countdown-enabled').checked=source.startCountdown;
-  $('end-enabled').checked=source.endEnabled;$('end-time').value=source.endTime;$('end-mode').value=source.endMode;
+  $('end-mode').value=source.endMode;fillEndSettings(source);
   $('min-game-minutes').value=Math.floor(source.minGameMs/60000);$('min-game-seconds').value=source.minGameMs/1000%60;
   syncEndFields();
   $('end-time-now').textContent=`Local time now: ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
@@ -358,12 +360,49 @@ function fillSettings() {
 }
 function syncDefaultCalloutFields(){for(const cue of WARNING_CUES)$(`${cue}-callout-enabled`).disabled=!$('lineup-enabled').checked;}
 $('lineup-enabled').onchange=syncDefaultCalloutFields;
+function fillEndSettings(source) {
+  const schedule=endScheduleFor(source),scheduled=schedule.enabled,day=schedule.days[settingsEndDay];
+  source.endSchedule=schedule;
+  $('end-schedule-enabled').checked=scheduled;$('end-weekday-picker').hidden=!scheduled;
+  for(const button of document.querySelectorAll('[data-end-day]')){
+    const selected=Number(button.dataset.endDay)===settingsEndDay;
+    button.setAttribute('aria-pressed',String(selected));button.classList.toggle('selected',selected);
+  }
+  $('end-enabled').checked=scheduled?day.enabled:source.endEnabled;
+  $('end-time').value=scheduled?day.time:source.endTime;
+  const name=WEEKDAYS[settingsEndDay].long;
+  $('end-enabled-copy').textContent=scheduled?`End sessions on ${name}`:'Set a session end time';
+  $('end-time-label').textContent=scheduled?`${name} end time`:'End time today';
+  syncEndFields();
+}
+function storeEndSettings(source) {
+  const schedule=endScheduleFor(source),value=$('end-time').value;
+  if(schedule.enabled){
+    schedule.days[settingsEndDay]={enabled:$('end-enabled').checked,time:validEndTime(value)?value:schedule.days[settingsEndDay].time};
+    source.endSchedule=schedule;
+  } else {
+    source.endEnabled=$('end-enabled').checked;
+    if(validEndTime(value))source.endTime=value;
+  }
+}
 function syncEndFields(){
-  const enabled=$('end-enabled').checked,hard=$('end-mode').value==='hard';
-  $('end-time').disabled=!enabled;$('end-mode').disabled=!enabled;
-  $('min-game-minutes').disabled=!enabled||!hard;$('min-game-seconds').disabled=!enabled||!hard;
+  const source=settingsDrafts?.[settingsTeam],schedule=endScheduleFor(source??{}),enabled=$('end-enabled').checked;
+  const anyEnabled=schedule.enabled?Object.values(schedule.days).some((day,index)=>Number(index)===settingsEndDay?enabled:day.enabled):enabled;
+  const hard=$('end-mode').value==='hard';
+  $('end-time').disabled=!enabled;$('end-mode').disabled=!anyEnabled;
+  $('min-game-minutes').disabled=!anyEnabled||!hard;$('min-game-seconds').disabled=!anyEnabled||!hard;
 }
 $('end-enabled').onchange=syncEndFields;$('end-mode').onchange=syncEndFields;
+$('end-schedule-enabled').onchange=()=>{
+  const source=settingsDrafts[settingsTeam];storeEndSettings(source);
+  source.endSchedule=endScheduleFor(source);source.endSchedule.enabled=$('end-schedule-enabled').checked;
+  fillEndSettings(source);
+};
+for(const button of document.querySelectorAll('[data-end-day]'))button.onclick=()=>{
+  const source=settingsDrafts[settingsTeam];
+  if($('end-enabled').checked&&!validEndTime($('end-time').value)){$('settings-error').textContent='Choose an end time for this day.';return;}
+  storeEndSettings(source);settingsEndDay=Number(button.dataset.endDay);fillEndSettings(source);$('settings-error').textContent='';
+};
 $('setup-settings').onclick=openSettings;
 function readSettingsDraft() {
   const colors = Object.fromEntries('ABCDE'.split('').map(t=>[t,document.querySelector(`[name="color-${t}"]`).value]));
@@ -372,11 +411,13 @@ function readSettingsDraft() {
   if(!validColors(5,colors))throw new Error('Choose five different team colors.');
   const target=fresh(5);
   applySettings(target,colorsForTeams(target.teams,colors),gameMs,Date.now(),changeMs);
-  const minGameMs=(Number($('min-game-minutes').value)*60+Number($('min-game-seconds').value))*1000;
-  if($('end-enabled').checked && $('end-mode').value==='hard' && (!durationOK(minGameMs)||minGameMs>gameMs)){selectSettingsTab('session');throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');}
   const draft=settingsDrafts[settingsTeam];
+  storeEndSettings(draft);
+  const schedule=endScheduleFor(draft),hasEnd=schedule.enabled?Object.values(schedule.days).some(day=>day.enabled):draft.endEnabled;
+  const minGameMs=(Number($('min-game-minutes').value)*60+Number($('min-game-seconds').value))*1000;
+  if(hasEnd && $('end-mode').value==='hard' && (!durationOK(minGameMs)||minGameMs>gameMs)){selectSettingsTab('session');throw new Error('Minimum final game must be at least 1 second and no longer than a full game.');}
   draft.startCountdown=$('start-countdown-enabled').checked;
-  draft.endEnabled=$('end-enabled').checked;draft.endTime=$('end-time').value;draft.endMode=$('end-mode').value;
+  draft.endMode=$('end-mode').value;
   draft.minGameMs=durationOK(minGameMs)?minGameMs:120000;
   draft.gameMs=gameMs;draft.changeMs=changeMs;
   $('setup-error').textContent='';
@@ -476,7 +517,12 @@ $('timing-form').onsubmit=event=>{
     const saveDefaults=$('session-save-defaults').checked;
     if(saveDefaults){
       const teams=state.teams,saved=profileFor(preferences,teams);
-      Object.assign(saved,{gameMs:state.gameMs,changeMs:state.changeMs,labelMode:state.labelMode,...audio,endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value||saved.endTime,endMode:$('session-end-mode').value,minGameMs});
+      const endEnabled=$('session-end-enabled').checked,endTime=$('session-end-time').value||saved.endTime;
+      if(endScheduleFor(saved).enabled){
+        saved.endSchedule=endScheduleFor(saved);
+        saved.endSchedule.days[new Date(now).getDay()]={enabled:endEnabled,time:endTime};
+      } else {saved.endEnabled=endEnabled;saved.endTime=endTime;}
+      Object.assign(saved,{gameMs:state.gameMs,changeMs:state.changeMs,labelMode:state.labelMode,...audio,endMode:$('session-end-mode').value,minGameMs});
       preferences.profiles[teams]=saved;
       if(preferences.setupTeams===teams)Object.assign(preferences,profileFor(preferences,teams));
     }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AUDIO_CUES,WARNING_CUES,audioFor,loadPreferences,savePreferences,PREF_KEY,soundEnabled,warningCalloutEnabled} from '../preferences.mjs';
+import {AUDIO_CUES,WARNING_CUES,WEEKDAYS,audioFor,endScheduleFor,endSettingsForDate,loadPreferences,savePreferences,PREF_KEY,soundEnabled,warningCalloutEnabled} from '../preferences.mjs';
 function memory(initial={}){const data=new Map([[PREF_KEY,JSON.stringify(initial)]]);return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};}
 test('existing settings retain master mute and crowd choice while new cue toggles default on',()=>{
  const prefs=loadPreferences(memory({sounds:false,crowd:true}));
@@ -51,4 +51,34 @@ test('session audio copies are independent from saved defaults and normalize mal
  const prefs=loadPreferences(memory()),session=audioFor(prefs);session.audioCues.minute=false;session.warningCallouts.ten=false;
  assert.equal(prefs.audioCues.minute,true);assert.equal(prefs.warningCallouts.ten,true);
  assert.deepEqual(audioFor({sounds:false,warningCallouts:{minute:true,thirty:'yes'}}).warningCallouts,{minute:true,thirty:false,ten:true});
+});
+test('weekday end times migrate from the daily default and resolve in local time',()=>{
+ const storage=memory({endEnabled:true,endTime:'20:30'}),prefs=loadPreferences(storage);
+ assert.equal(prefs.endSchedule.enabled,false);assert.equal(WEEKDAYS.length,7);
+ assert.ok(Object.values(prefs.endSchedule.days).every(day=>day.enabled&&day.time==='20:30'));
+ prefs.endSchedule.enabled=true;
+ prefs.endSchedule.days[1]={enabled:true,time:'19:15'};
+ prefs.endSchedule.days[2]={enabled:false,time:'21:00'};
+ savePreferences(storage,prefs);const restored=loadPreferences(storage);
+ const monday=new Date(2026,10,9,12,0).getTime(),tuesday=new Date(2026,10,10,12,0).getTime();
+ assert.deepEqual(endScheduleFor(restored.profiles[4]).days[1],{enabled:true,time:'19:15'});
+ assert.equal(endSettingsForDate(restored,monday).endTime,'19:15');
+ assert.equal(endSettingsForDate(restored,monday).endEnabled,true);
+ assert.equal(endSettingsForDate(restored,tuesday).endEnabled,false);
+});
+test('malformed weekday entries recover without changing the valid schedule',()=>{
+ const prefs=loadPreferences(memory({endEnabled:false,endTime:'22:00',endSchedule:{enabled:true,days:{1:{enabled:true,time:'18:45'},2:{enabled:'yes',time:'29:00'}}}}));
+ assert.deepEqual(prefs.endSchedule.days[1],{enabled:true,time:'18:45'});
+ assert.deepEqual(prefs.endSchedule.days[2],{enabled:false,time:'22:00'});
+});
+test('weekday schedules remain independent for each team-count profile',()=>{
+ const storage=memory(),prefs=loadPreferences(storage);
+ prefs.profiles[3].endSchedule.enabled=true;
+ prefs.profiles[3].endSchedule.days[5]={enabled:true,time:'18:30'};
+ prefs.profiles[5].endSchedule.enabled=true;
+ prefs.profiles[5].endSchedule.days[5]={enabled:true,time:'21:15'};
+ savePreferences(storage,prefs);
+ const restored=loadPreferences(storage);
+ assert.equal(restored.profiles[3].endSchedule.days[5].time,'18:30');
+ assert.equal(restored.profiles[5].endSchedule.days[5].time,'21:15');
 });

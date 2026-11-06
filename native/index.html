@@ -58,11 +58,13 @@
 <label class="wake-label"><input type="checkbox" id="start-countdown-enabled"> Start session with a 5-second countdown</label>
 </div>
 <div id="settings-session-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-session-tab" hidden>
-<label class="wake-label"><input type="checkbox" id="end-enabled"> Set a session end time</label><p class="field-help" id="end-time-now"></p>
-<div class="session-fields"><label class="color-field">End time today<input id="end-time" type="time" required></label><label class="color-field">How to finish<select id="end-mode"><option value="hard">Hard stop</option><option value="soft">Finish last game</option><option value="full">Full games only</option></select></label></div>
+<label class="wake-label"><input type="checkbox" id="end-schedule-enabled"> Use different end times by weekday</label>
+<div class="weekday-picker" id="end-weekday-picker" hidden><span>Editing</span><div role="group" aria-label="Choose weekday"><button type="button" data-end-day="1">Mon</button><button type="button" data-end-day="2">Tue</button><button type="button" data-end-day="3">Wed</button><button type="button" data-end-day="4">Thu</button><button type="button" data-end-day="5">Fri</button><button type="button" data-end-day="6">Sat</button><button type="button" data-end-day="0">Sun</button></div></div>
+<label class="wake-label"><input type="checkbox" id="end-enabled"> <span id="end-enabled-copy">Set a session end time</span></label><p class="field-help" id="end-time-now"></p>
+<div class="session-fields"><label class="color-field"><span id="end-time-label">End time today</span><input id="end-time" type="time" required></label><label class="color-field">How to finish<select id="end-mode"><option value="hard">Hard stop</option><option value="soft">Finish last game</option><option value="full">Full games only</option></select></label></div>
 <p class="field-help">Hard stop ends at the set time, allowing a shortened final game. Finish last game allows the game already underway to finish. Full games only skips a final game that won’t fit.</p>
 <fieldset><legend>Minimum shortened game</legend><div class="duration-fields"><label>Minutes<input id="min-game-minutes" aria-label="Minimum game minutes" type="number" inputmode="numeric" min="0" step="1" required></label><label>Seconds<input id="min-game-seconds" aria-label="Minimum game seconds" type="number" inputmode="numeric" min="0" step="1" required></label></div></fieldset>
-<p class="field-help">For hard stops only. A shorter slot is skipped before kickoff. Pausing never moves the end time. End times apply today; disable for continuous play.</p>
+<p class="field-help">For hard stops only. A shorter slot is skipped before kickoff. Pausing never moves the end time. Weekday schedules use the device’s local day and time.</p>
 </div>
 <div id="settings-audio-panel" class="settings-panel" role="tabpanel" aria-labelledby="settings-audio-tab" hidden>
 <fieldset><legend class="sr-only">Match sounds</legend>
