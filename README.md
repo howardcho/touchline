@@ -15,7 +15,8 @@ Both apps bundle the interface and all audio for offline use. Native audio ducks
 - Large now-playing and up-next matchups, plus a tappable list of every game that fits before the session ends.
 - Optional game/changeover timers, a five-second opening countdown, pause/resume, restart, and ±30-second controls.
 - Full-screen match clock; portrait and landscape layouts.
-- Referee whistles, spoken warnings, team callouts, and optional stadium crowd.
+- Referee whistles, spoken warnings, warning-specific team callouts, and optional stadium crowd.
+- Session timing, finish rules, and audio can be changed during play; an optional checkbox saves those choices as that team count's defaults.
 - Saved defaults for each team count, plus session-only timing and roster changes.
 - Optional session end time with hard stop, finish-last-game, or full-games-only rules.
 

@@ -1,5 +1,5 @@
 import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame,sessionBoundary} from './session.mjs';
-import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, soundEnabled} from './preferences.mjs';
+import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, WARNING_CUES, audioFor, soundEnabled, warningCalloutEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
@@ -12,6 +12,7 @@ const nativeHost=globalThis.touchlineNative ?? globalThis.webkit?.messageHandler
 let preferences;
 try { preferences=loadPreferences(localStorage); } catch { preferences=loadPreferences({getItem:()=>null}); }
 wantWake=preferences.keepAwake;$('wake').checked=wantWake;
+const activeAudio=()=>state?.audio??preferences;
 function storageWarning() { $('save-note').textContent='Browser storage is unavailable. Settings will last only while this page stays open.'; }
 function persist() {
   try {
@@ -31,6 +32,7 @@ function restore() {
       s.openingGameMs=Number.isFinite(s.openingGameMs)&&s.openingGameMs>0&&s.openingGameMs<=MAX_DURATION_MS?s.openingGameMs:s.gameMs;
       s.countdownDone=typeof s.countdownDone==='boolean'?s.countdownDone:s.phase!=='countdown'&&s.phaseStarted;
       s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
+      s.audio=audioFor(s.audio??profileFor(preferences,s.teams));
       s.clockView=s.clockView===true;state=s; }
   } catch {}
 }
@@ -124,16 +126,18 @@ function playCue(cue) {
   if(!cue || document.visibilityState!=='visible')return;
   // Kickoff clears any remaining celebration even when its whistle is muted.
   if(cue==='start')sounds.stop();
-  if(soundEnabled(preferences,cue))sounds.play(cue,{crowd:soundEnabled(preferences,'crowd'),crowdVolume:soundEnabled(preferences,'lineup')?0.15:0.45});
-  else if(cue==='whistle' && soundEnabled(preferences,'crowd'))sounds.play('crowd');
-  if(cue==='whistle' && !state.finished && (state.pendingTeams?.teams??state.teams)>2 && soundEnabled(preferences,'lineup')){
-    const lineup=lineupFor(state);sounds.sayUp(lineup.up,{delay:soundEnabled(preferences,'whistle')?3.55:0});announce(lineup.upText);
+  const audio=activeAudio();
+  if(soundEnabled(audio,cue))sounds.play(cue,{crowd:soundEnabled(audio,'crowd'),crowdVolume:soundEnabled(audio,'lineup')?0.15:0.45});
+  else if(cue==='whistle' && soundEnabled(audio,'crowd'))sounds.play('crowd');
+  if(cue==='whistle' && !state.finished && (state.pendingTeams?.teams??state.teams)>2 && soundEnabled(audio,'lineup')){
+    const lineup=lineupFor(state);sounds.sayUp(lineup.up,{delay:soundEnabled(audio,'whistle')?3.55:0});announce(lineup.upText);
   }
 }
 function cueAudible(cue) {
-  if(cue==='whistle')return soundEnabled(preferences,'whistle')||soundEnabled(preferences,'crowd')||((state.pendingTeams?.teams??state.teams)>2&&soundEnabled(preferences,'lineup'));
-  if(cue==='ten')return soundEnabled(preferences,'ten')||((state.pendingTeams?.teams??state.teams)>2&&soundEnabled(preferences,'lineup'));
-  return soundEnabled(preferences,cue);
+  const audio=activeAudio(),hasTeams=(state.pendingTeams?.teams??state.teams)>2;
+  if(cue==='whistle')return soundEnabled(audio,'whistle')||soundEnabled(audio,'crowd')||(hasTeams&&soundEnabled(audio,'lineup'));
+  if(WARNING_CUES.includes(cue))return soundEnabled(audio,cue)||(hasTeams&&warningCalloutEnabled(audio,cue));
+  return soundEnabled(audio,cue);
 }
 function tick() {
   if(!state || state.finished || (!state.running && !sessionBoundary(state))) return;
@@ -143,13 +147,14 @@ function tick() {
   const cue=timerCue(before,state,now);
   if(!state.finished)playCue(cue);
   if(['minute','thirty','ten'].includes(cue))announce({minute:'One minute remaining.',thirty:'Thirty seconds remaining.',ten:'Ten seconds remaining.'}[cue]);
-  if(cue==='ten' && (state.pendingTeams?.teams??state.teams)>2 && soundEnabled(preferences,'lineup') && document.visibilityState==='visible') {
-    const lineup=lineupFor(state),delay=soundEnabled(preferences,'ten')?sounds.duration('ten')+0.2:0;
+  const audio=activeAudio();
+  if(WARNING_CUES.includes(cue) && (state.pendingTeams?.teams??state.teams)>2 && warningCalloutEnabled(audio,cue) && document.visibilityState==='visible') {
+    const lineup=lineupFor(state),delay=soundEnabled(audio,cue)?sounds.duration(cue)+0.2:0;
     sounds.sayDeck(lineup.up,{delay,replace:false});announce(`Team ${lineup.up[0]} and team ${lineup.up[1]}, you're on deck!`);
   }
   const count=changeoverCount(before,state,now);
   if(count!==null) {
-    if(soundEnabled(preferences,'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
+    if(soundEnabled(activeAudio(),'countdown') && document.visibilityState==='visible')sounds.sayCount(count);
     announce(`${count}. Next game starts soon.`);
   }
   if(!before.finished && state.finished){sounds.stop();playCue(cue);persist();render();announce('Session complete.');openSessionSummary();return;}
@@ -164,14 +169,14 @@ for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('cl
   const now=Date.now();let ending,elapsedEnd=false;
   try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
-  state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown};
+  state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown,audio:audioFor(preferences)};
   persist();render();$('start').focus();
-  if(elapsedEnd)announce('The saved end time has passed. This session will run continuously unless you set a new end time in Session timing.');
+  if(elapsedEnd)announce('The saved end time has passed. This session will run continuously unless you set a new end time in Session settings.');
 });
 $('start').onclick=async()=> {
   if(preparingStart)return;
   sounds.stop();
-  const ready=preferences.sounds?sounds.unlock():Promise.resolve(false);
+  const ready=activeAudio().sounds?sounds.unlock():Promise.resolve(false);
   tick();
   if(wantWake&&!wakeLock)acquireWake();
   const initial=!state.running && state.phase==='game' && state.game===1 && !state.phaseStarted && state.startCountdown && !state.countdownDone;
@@ -181,7 +186,7 @@ $('start').onclick=async()=> {
     const audioReady=await ready;preparingStart=false;
     if(state!==original || sounds.generation!==generation || state.finished){render();return;}
     toggle(state,Date.now());persist();render();
-    if(initial && audioReady && state.running && state.phase==='countdown' && soundEnabled(preferences,'countdown'))sounds.sayCount(5);
+    if(initial && audioReady && state.running && state.phase==='countdown' && soundEnabled(activeAudio(),'countdown'))sounds.sayCount(5);
     announce(state.finished?'Session complete.':initial?'Five-second countdown.':'Countdown resumed.');return;
   }
   const beginning=!state.running && state.phase==='game' && !state.phaseStarted;
@@ -223,7 +228,7 @@ for(const [id,delta] of [['subtract-time',-30000],['add-time',30000]]) $(id).onc
   announce(`${state.phase==='game'?'Game':'Changeover'} timer: ${formatTime(state.remaining)}. ${state.running?'Running':'Paused'}.`);
 };
 async function selectGame(delta,cardIndex=null,upcomingOffset=null) {
-  sounds.stop();const ready=delta>0&&state.teams>2&&soundEnabled(preferences,'lineup')?sounds.unlock():Promise.resolve(false);
+  sounds.stop();const ready=delta>0&&state.teams>2&&soundEnabled(activeAudio(),'lineup')?sounds.unlock():Promise.resolve(false);
   const audioGeneration=sounds.generation;
   const now=Date.now();if(upcomingOffset!==null)jumpToUpcomingGame(state,upcomingOffset,now);else if(cardIndex===null)move(state,delta,now);else jumpToBoardGame(state,cardIndex,now);if(delta>0&&Number.isFinite(state.endAt))prepareSessionGame(state,now);persist();render();announce(state.finished?'Session complete.':`Game ${state.game}. Timer paused.`);
   const movedState=state,movedGame=state.game;
@@ -292,8 +297,12 @@ function fillSettings() {
   syncEndFields();
   $('end-time-now').textContent=`Local time now: ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
   for(const cue of AUDIO_CUES)$(`${cue}-enabled`).checked=source.audioCues[cue];
+  for(const cue of WARNING_CUES)$(`${cue}-callout-enabled`).checked=source.warningCallouts[cue];
+  syncDefaultCalloutFields();
   $('sound-status').textContent='';$('settings-error').textContent='';
 }
+function syncDefaultCalloutFields(){for(const cue of WARNING_CUES)$(`${cue}-callout-enabled`).disabled=!$('lineup-enabled').checked;}
+$('lineup-enabled').onchange=syncDefaultCalloutFields;
 function syncEndFields(){
   const enabled=$('end-enabled').checked,hard=$('end-mode').value==='hard';
   $('end-time').disabled=!enabled;$('end-mode').disabled=!enabled;
@@ -320,6 +329,7 @@ function readSettingsDraft() {
   draft.sounds=$('sounds-enabled').checked;
   draft.crowd=$('crowd-enabled').checked;
   draft.audioCues=Object.fromEntries(AUDIO_CUES.map(cue=>[cue,$(`${cue}-enabled`).checked]));
+  draft.warningCallouts=Object.fromEntries(WARNING_CUES.map(cue=>[cue,$(`${cue}-callout-enabled`).checked]));
   return draft;
 }
 $('defaults-teams').onchange=()=>{
@@ -338,6 +348,38 @@ $('settings-form').onsubmit=event=>{
     persist();render();$('options-dialog').close();announce('Team-count defaults saved.');
   }catch(error){$('settings-error').textContent=error.message;}
 };
+function selectLiveSettingsTab(name,focus=false){
+  for(const tab of document.querySelectorAll('[data-live-settings-tab]')){
+    const selected=tab.dataset.liveSettingsTab===name;
+    tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;
+    $(tab.getAttribute('aria-controls')).hidden=!selected;
+    if(selected&&focus)tab.focus();
+  }
+  if(name!=='audio')sounds.stop();
+}
+for(const tab of document.querySelectorAll('[data-live-settings-tab]')){
+  tab.onclick=()=>selectLiveSettingsTab(tab.dataset.liveSettingsTab);
+  tab.onkeydown=event=>{
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    event.preventDefault();const next=(event.key==='ArrowRight'||event.key==='End')?'audio':'session';selectLiveSettingsTab(next,true);
+  };
+}
+function fillLiveAudio(){
+  const audio=audioFor(state.audio??preferences);
+  $('session-sounds-enabled').checked=audio.sounds;$('session-crowd-enabled').checked=audio.crowd;
+  for(const cue of AUDIO_CUES)$(`session-${cue}-enabled`).checked=audio.audioCues[cue];
+  for(const cue of WARNING_CUES)$(`session-${cue}-callout-enabled`).checked=audio.warningCallouts[cue];
+  syncLiveCalloutFields();$('session-sound-status').textContent='';
+}
+function readLiveAudio(){
+  return audioFor({
+    sounds:$('session-sounds-enabled').checked,crowd:$('session-crowd-enabled').checked,
+    audioCues:Object.fromEntries(AUDIO_CUES.map(cue=>[cue,$(`session-${cue}-enabled`).checked])),
+    warningCallouts:Object.fromEntries(WARNING_CUES.map(cue=>[cue,$(`session-${cue}-callout-enabled`).checked]))
+  });
+}
+function syncLiveCalloutFields(){for(const cue of WARNING_CUES)$(`session-${cue}-callout-enabled`).disabled=!$('session-lineup-enabled').checked;}
+$('session-lineup-enabled').onchange=syncLiveCalloutFields;
 $('session-timing').onclick=()=>{
   tick();if(state.finished)return;
   for(const [prefix,value] of [['session-game',state.gameMs],['session-change',state.changeMs]]){
@@ -349,7 +391,8 @@ $('session-timing').onclick=()=>{
   $('session-end-mode').value=state.endMode??'hard';
   const minimum=state.minGameMs??Math.min(120000,state.gameMs);
   $('session-min-game-minutes').value=Math.floor(minimum/60000);$('session-min-game-seconds').value=minimum/1000%60;
-  syncSessionEndFields();
+  fillLiveAudio();syncSessionEndFields();selectLiveSettingsTab('session');
+  $('session-save-defaults').checked=false;$('session-save-defaults-label').textContent=`Save as the ${state.teams}-team defaults`;
   $('timing-error').textContent='';$('timing-dialog').showModal();
 };
 function syncSessionEndFields(){
@@ -359,6 +402,7 @@ function syncSessionEndFields(){
 }
 $('session-end-enabled').onchange=syncSessionEndFields;$('session-end-mode').onchange=syncSessionEndFields;
 $('cancel-timing').onclick=()=>$('timing-dialog').close();
+$('timing-form').addEventListener('invalid',event=>{if(event.target.closest('#live-session-panel'))selectLiveSettingsTab('session');},true);
 $('timing-form').onsubmit=event=>{
   event.preventDefault();
   try {
@@ -369,8 +413,17 @@ $('timing-form').onsubmit=event=>{
     const draft=structuredClone(state);
     updateSessionTiming(draft,gameMs,duration('session-change'),now);
     updateSessionEnd(draft,{endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value,endMode:$('session-end-mode').value,minGameMs},now);
+    const audio=readLiveAudio();draft.audio=audio;
     Object.assign(state,draft);
-    persist();render();$('timing-dialog').close();announce('Session timing updated. Saved defaults unchanged.');
+    const saveDefaults=$('session-save-defaults').checked;
+    if(saveDefaults){
+      const teams=state.teams,saved=profileFor(preferences,teams);
+      Object.assign(saved,{gameMs:state.gameMs,changeMs:state.changeMs,...audio,endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value||saved.endTime,endMode:$('session-end-mode').value,minGameMs});
+      preferences.profiles[teams]=saved;
+      if(preferences.setupTeams===teams)Object.assign(preferences,profileFor(preferences,teams));
+    }
+    if(!audio.sounds)sounds.stop();
+    persist();render();$('timing-dialog').close();announce(saveDefaults?`Session settings updated and saved as the ${state.teams}-team defaults.`:'Session settings updated. Saved defaults unchanged.');
   }catch(error){$('timing-error').textContent=error.message;}
 };
 
@@ -428,8 +481,8 @@ $('summary-back-to-selection').onclick=()=>{$('session-summary-dialog').close();
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
 });
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:preferences.startCountdown,...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
-function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('setup-settings').focus();}
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:state.startCountdown,audio:audioFor(state.audio??preferences),...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('timing-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('timing-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
 $('schedule-button').onclick=()=>{
@@ -451,10 +504,27 @@ for(const button of document.querySelectorAll('[data-sound]')) button.onclick=as
   const ready=await sounds.unlock();
   if(!$('options-dialog').open || $('settings-audio-panel').hidden)return;
   $('sound-status').textContent=ready ? 'Preview playing. Check your device volume.' : 'Audio unavailable. Check browser and device sound settings.';
-  if(ready){sounds.stop();if(button.dataset.sound==='countdown')sounds.previewCountdown();else if(button.dataset.sound==='lineup')sounds.sayTeams(['Red','Blue'],['Purple','Black']);else sounds.play(button.dataset.sound,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});
+  if(ready){sounds.stop();const cue=button.dataset.sound;if(cue==='countdown')sounds.previewCountdown();else if(cue==='lineup')sounds.sayTeams(['Red','Blue'],['Purple','Black']);else {sounds.play(cue,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});if(WARNING_CUES.includes(cue)&&$('lineup-enabled').checked&&$(`${cue}-callout-enabled`).checked)sounds.sayDeck(['Green','Black'],{delay:sounds.duration(cue)+0.2,replace:false});}
     if(sounds.failedAssets.length)$('sound-status').textContent='Some recordings could not load. Available fallback cues will play. Reopen online to reload audio.';}
 };
+for(const button of document.querySelectorAll('[data-session-sound]')) button.onclick=async()=>{
+  $('session-sound-status').textContent='Preparing audio…';
+  const ready=await sounds.unlock();
+  if(!$('timing-dialog').open || $('live-audio-panel').hidden)return;
+  $('session-sound-status').textContent=ready?'Preview playing. Check your device volume.':'Audio unavailable. Check browser and device sound settings.';
+  if(ready){
+    sounds.stop();const cue=button.dataset.sessionSound;
+    if(cue==='countdown')sounds.previewCountdown();
+    else if(cue==='lineup')sounds.sayTeams(['Red','Blue'],['Purple','Black']);
+    else {
+      sounds.play(cue,{crowd:$('session-sounds-enabled').checked&&$('session-crowd-enabled').checked});
+      if(WARNING_CUES.includes(cue)&&$('session-lineup-enabled').checked&&$(`session-${cue}-callout-enabled`).checked)sounds.sayDeck(['Green','Black'],{delay:sounds.duration(cue)+0.2,replace:false});
+    }
+    if(sounds.failedAssets.length)$('session-sound-status').textContent='Some recordings could not load. Available fallback cues will play. Reopen online to reload audio.';
+  }
+};
 $('options-dialog').addEventListener('close',()=>sounds.stop());
+$('timing-dialog').addEventListener('close',()=>sounds.stop());
 $('install-button').onclick=()=> $('install-dialog').showModal();
 async function acquireWake() {
   if(!wantWake || document.visibilityState!=='visible') return;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AUDIO_CUES,loadPreferences,savePreferences,PREF_KEY,soundEnabled} from '../preferences.mjs';
+import {AUDIO_CUES,WARNING_CUES,audioFor,loadPreferences,savePreferences,PREF_KEY,soundEnabled,warningCalloutEnabled} from '../preferences.mjs';
 function memory(initial={}){const data=new Map([[PREF_KEY,JSON.stringify(initial)]]);return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};}
 test('existing settings retain master mute and crowd choice while new cue toggles default on',()=>{
  const prefs=loadPreferences(memory({sounds:false,crowd:true}));
@@ -37,4 +37,18 @@ test('fresh installs enable all optional settings while explicit saved off choic
  const disabled={sounds:false,crowd:false,startCountdown:false,keepAwake:false,endEnabled:false,audioCues:Object.fromEntries(AUDIO_CUES.map(cue=>[cue,false]))};
  const restored=loadPreferences(memory(disabled));
  for(const key of Object.keys(disabled))assert.deepEqual(restored[key],disabled[key]);
+});
+test('warning callouts preserve the existing ten-second behavior and can move to any warning',()=>{
+ const storage=memory(),prefs=loadPreferences(storage);
+ assert.deepEqual(prefs.warningCallouts,{minute:false,thirty:false,ten:true});
+ assert.deepEqual(WARNING_CUES.filter(cue=>warningCalloutEnabled(prefs,cue)),['ten']);
+ prefs.warningCallouts={minute:true,thirty:true,ten:false};savePreferences(storage,prefs);
+ const restored=loadPreferences(storage);assert.deepEqual(restored.warningCallouts,{minute:true,thirty:true,ten:false});
+ assert.deepEqual(WARNING_CUES.filter(cue=>warningCalloutEnabled(restored,cue)),['minute','thirty']);
+ restored.audioCues.lineup=false;assert.ok(WARNING_CUES.every(cue=>!warningCalloutEnabled(restored,cue)));
+});
+test('session audio copies are independent from saved defaults and normalize malformed values',()=>{
+ const prefs=loadPreferences(memory()),session=audioFor(prefs);session.audioCues.minute=false;session.warningCallouts.ten=false;
+ assert.equal(prefs.audioCues.minute,true);assert.equal(prefs.warningCallouts.ten,true);
+ assert.deepEqual(audioFor({sounds:false,warningCallouts:{minute:true,thirty:'yes'}}).warningCallouts,{minute:true,thirty:false,ten:true});
 });

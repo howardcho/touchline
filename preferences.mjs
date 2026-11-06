@@ -1,10 +1,23 @@
 import {END_MODES,validEndTime} from './session.mjs';
 import {GAME_MS, CHANGE_MS, MAX_DURATION_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
 export const AUDIO_CUES = Object.freeze(['start','minute','thirty','ten','whistle','countdown','lineup']);
+export const WARNING_CUES = Object.freeze(['minute','thirty','ten']);
+const DEFAULT_WARNING_CALLOUTS = Object.freeze({minute:false,thirty:false,ten:true});
 export function soundEnabled(preferences,cue) {
   if(!preferences.sounds)return false;
   if(cue==='crowd')return preferences.crowd===true;
   return AUDIO_CUES.includes(cue) && preferences.audioCues?.[cue]!==false;
+}
+export function audioFor(source={}) {
+  return {
+    sounds: typeof source.sounds==='boolean'?source.sounds:true,
+    crowd: typeof source.crowd==='boolean'?source.crowd:true,
+    audioCues:Object.fromEntries(AUDIO_CUES.map(cue=>[cue,typeof source.audioCues?.[cue]==='boolean'?source.audioCues[cue]:true])),
+    warningCallouts:Object.fromEntries(WARNING_CUES.map(cue=>[cue,typeof source.warningCallouts?.[cue]==='boolean'?source.warningCallouts[cue]:DEFAULT_WARNING_CALLOUTS[cue]]))
+  };
+}
+export function warningCalloutEnabled(settings,cue) {
+  return WARNING_CUES.includes(cue) && soundEnabled(settings,'lineup') && settings.warningCallouts?.[cue]===true;
 }
 export const PREF_KEY = 'touchline-preferences-v1';
 export const durationOK = value => Number.isInteger(value) && value >= 1000 && value <= MAX_DURATION_MS && value % 1000 === 0;
@@ -19,7 +32,7 @@ function normalize(raw, legacy) {
     crowd: typeof raw.crowd === 'boolean' ? raw.crowd : true,
     startCountdown: typeof raw.startCountdown==='boolean'?raw.startCountdown:true,
     keepAwake: typeof raw.keepAwake==='boolean'?raw.keepAwake:true,
-    audioCues: Object.fromEntries(AUDIO_CUES.map(cue=>[cue,typeof raw.audioCues?.[cue]==='boolean' ? raw.audioCues[cue] : true])),
+    ...audioFor(raw),
     endEnabled: typeof raw.endEnabled==='boolean'?raw.endEnabled:true,
     endTime: validEndTime(raw.endTime)?raw.endTime:'23:59',
     endMode: END_MODES.includes(raw.endMode)?raw.endMode:'hard',
@@ -27,7 +40,7 @@ function normalize(raw, legacy) {
     colors: validColors(5,raw.colors) ? {...raw.colors} : completeColors(older)
   };
 }
-const PROFILE_KEYS = ['gameMs','changeMs','colors','sounds','crowd','audioCues','startCountdown','endEnabled','endTime','endMode','minGameMs'];
+const PROFILE_KEYS = ['gameMs','changeMs','colors','sounds','crowd','audioCues','warningCallouts','startCountdown','endEnabled','endTime','endMode','minGameMs'];
 export function profileFor(preferences, teams) {
   const source=preferences.profiles?.[teams] ?? preferences;
   return structuredClone(Object.fromEntries(PROFILE_KEYS.map(key=>[key,source[key]])));
