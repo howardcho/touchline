@@ -253,7 +253,7 @@ public final class MainActivity extends Activity {
         if(web!=null)web.onPause(); super.onPause();
     }
     @Override protected void onDestroy() {
-        audio.stop();
+        audio.shutdown();
         if(web!=null){web.removeJavascriptInterface("TouchlineAndroid");root.removeView(web);web.destroy();web=null;}
         super.onDestroy();
     }

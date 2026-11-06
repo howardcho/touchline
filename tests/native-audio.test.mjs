@@ -37,6 +37,11 @@ test('native team speech uses complete clips and countdown cancels competing cue
  assert.equal(commands.at(-1).name,'count-5');
  sounds.previewCountdown();sounds.stop();assert.equal(sounds.previewTimers.size,0);assert.equal(commands.at(-1).action,'stop');assert.ok(sounds.generation>0);
 });
+test('letter team callouts use native device speech with the requested delay',async()=>{
+ const {sounds,commands}=fixture();await sounds.unlock();
+ assert.equal(sounds.sayDeck(['A','C'],{delay:1.7}),true);
+ assert.deepEqual(commands.at(-1),{action:'speak',text:"Team A and team C, you're on deck!",rate:1,at:1.7});
+});
 test('native bridge failure does not start browser audio',async()=>{
  const sounds=new NativeMatchSounds({postMessage:async()=>{throw new Error('unavailable');}});
  assert.equal(await sounds.unlock(),false);assert.equal(sounds.context,null);

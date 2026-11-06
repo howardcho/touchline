@@ -1,7 +1,7 @@
 import AVFoundation
 
 // Only activate during cues, then release the session so music returns to normal.
-final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
+final class DuckingAudio: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     private static let duckLead: TimeInterval = 0.5
     private struct Clip { let url: URL; let duration: TimeInterval }
     private struct Pending { let group: String; let task: DispatchWorkItem }
@@ -13,9 +13,11 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
     private var sessionActive = false
     private var primedUntil = Date.distantPast
     private var interruptionObserver: NSObjectProtocol?
+    private let speech = AVSpeechSynthesizer()
 
     override init() {
         super.init()
+        speech.delegate = self
         interruptionObserver = NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] _ in self?.stop() }
     }
 
@@ -32,6 +34,11 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
                   let duration = command["duration"] as? Double, duration.isFinite, duration > 0, duration <= 120,
                   let volume = command["volume"] as? Double, volume.isFinite, (0...1).contains(volume) else { throw AudioError.invalidCommand }
             try schedule(clip, group: group, delay: delay, duration: min(duration, clip.duration), volume: Float(volume))
+        case "speak":
+            guard let text = command["text"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.count <= 240,
+                  let delay = command["at"] as? Double, delay.isFinite, (0...60).contains(delay),
+                  let rate = command["rate"] as? Double, rate.isFinite, (0.7...1.3).contains(rate) else { throw AudioError.invalidCommand }
+            try scheduleSpeech(text, delay: delay, rate: rate)
         case "stopGroup":
             guard let group = command["group"] as? String else { throw AudioError.invalidCommand }
             stopGroup(group)
@@ -103,6 +110,23 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay + lead, execute: task)
     }
 
+    private func scheduleSpeech(_ text: String, delay: TimeInterval, rate: Double) throws {
+        let lead = Date() < primedUntil ? 0 : Self.duckLead
+        try activate()
+        let id = UUID()
+        let task = DispatchWorkItem { [weak self] in
+            guard let self, self.pending[id] != nil else { return }
+            self.pending.removeValue(forKey: id)
+            let utterance = AVSpeechUtterance(string: text)
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-GB")
+            utterance.rate = AVSpeechUtteranceDefaultSpeechRate * Float(rate)
+            utterance.volume = 1
+            self.speech.speak(utterance)
+        }
+        pending[id] = Pending(group: "voice", task: task)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay + lead, execute: task)
+    }
+
     private func enqueue(after delay: TimeInterval, group: String, work: @escaping () -> Void) {
         let id = UUID()
         let task = DispatchWorkItem { [weak self] in
@@ -125,14 +149,18 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
         if let id = players.first(where: { $0.value === player })?.key { finish(id) }
     }
 
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) { releaseIfIdle() }
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) { releaseIfIdle() }
+
     private func stopGroup(_ group: String) {
         for id in pending.filter({ $0.value.group == group }).map(\.key) { pending.removeValue(forKey: id)?.task.cancel() }
         for id in groups.filter({ $0.value == group }).map(\.key) { players.removeValue(forKey: id)?.stop(); groups.removeValue(forKey: id) }
+        if group == "voice" { speech.stopSpeaking(at: .immediate) }
         releaseIfIdle()
     }
 
     private func releaseIfIdle() {
-        guard players.isEmpty, pending.isEmpty, sessionActive else { return }
+        guard players.isEmpty, pending.isEmpty, !speech.isSpeaking, sessionActive else { return }
         releaseTask?.cancel()
         let task = DispatchWorkItem { [weak self] in self?.deactivate() }
         releaseTask = task
@@ -141,7 +169,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
     }
 
     private func deactivate() {
-        guard players.isEmpty, pending.isEmpty, sessionActive else { return }
+        guard players.isEmpty, pending.isEmpty, !speech.isSpeaking, sessionActive else { return }
         do {
             try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
             sessionActive = false
@@ -153,6 +181,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate {
         primedUntil = .distantPast
         pending.values.forEach { $0.task.cancel() }; pending.removeAll()
         players.values.forEach { $0.stop() }; players.removeAll(); groups.removeAll()
+        speech.stopSpeaking(at: .immediate)
         deactivate()
     }
 

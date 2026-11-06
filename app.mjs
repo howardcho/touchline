@@ -1,5 +1,5 @@
 import {resolveSessionEnd,updateSessionEnd,END_MODES,prepareSessionGame,sessionBoundary} from './session.mjs';
-import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, WARNING_CUES, audioFor, soundEnabled, warningCalloutEnabled} from './preferences.mjs';
+import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, WARNING_CUES, LABEL_MODES, labelModeFor, audioFor, soundEnabled, warningCalloutEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
@@ -20,6 +20,27 @@ function persist() {
     if(!savePreferences(localStorage,preferences)) storageWarning();
   } catch {storageWarning();}
 }
+const TEAM_LETTERS='ABCDE'.split('');
+function labelsForColors(colors,existing={}) {
+  const result={},used=new Set();
+  for(const color of Object.values(colors||{})){
+    const label=existing[color];
+    if(TEAM_LETTERS.includes(label)&&!used.has(label)){result[color]=label;used.add(label);}
+  }
+  for(const color of Object.values(colors||{}))if(!result[color]){
+    const label=TEAM_LETTERS.find(candidate=>!used.has(candidate));
+    if(label){result[color]=label;used.add(label);}
+  }
+  return result;
+}
+function ensureTeamLabels(colors=state?.pendingTeams?.colors??state?.colors) {
+  if(!state||!colors)return;
+  state.teamLabels={...state.teamLabels,...labelsForColors(colors,state.teamLabels)};
+}
+function identityName(color,fallback='') {
+  return state?.labelMode==='letters'?`Team ${state.teamLabels?.[color]??fallback}`:color;
+}
+function matchupName(team,colors=state.colors) {return identityName(colors[team],team);}
 function restore() {
   try { const s = JSON.parse(localStorage.getItem(KEY));
     if(s) s.changeMs = durationOK(s.changeMs) ? s.changeMs : CHANGE_MS;
@@ -33,11 +54,18 @@ function restore() {
       s.countdownDone=typeof s.countdownDone==='boolean'?s.countdownDone:s.phase!=='countdown'&&s.phaseStarted;
       s.minGameMs=durationOK(s.minGameMs)?s.minGameMs:Math.min(120000,s.gameMs);
       s.audio=audioFor(s.audio??profileFor(preferences,s.teams));
+      s.labelMode=labelModeFor(s);
+      s.teamLabels=labelsForColors({...s.colors,...(s.pendingTeams?.colors??{})},s.teamLabels);
       s.clockView=s.clockView===true;state=s; }
   } catch {}
 }
-function colorName(t) { return state.colors[t]; }
-function teamHTML(color) {
+function colorName(t) { return matchupName(t); }
+function teamHTML(team,colors=state.colors) {
+  const color=colors[team];
+  if(state.labelMode==='letters'){
+    const letter=state.teamLabels?.[color]??team;
+    return `<span class="team-letter letter-name" data-label-mode="letters"><span class="letter-marker" aria-hidden="true">${letter}</span>Team ${letter}</span>`;
+  }
   return `<span class="team-letter" data-color="${color}"><svg class="team-flag" viewBox="0 0 80 64" aria-hidden="true" focusable="false"><path class="flag-pole" d="M12 7v51"/><path class="flag-cloth" d="M13 10C32 0 48 20 69 9v33C48 53 32 33 13 43Z"/><path class="flag-fold" d="M41 11c9 3 18 4 28-2v33c-10 6-19 5-28 2Z"/></svg>${color}</span>`;
 }
 function iconButtonLabel(id,label,mode='',visibleLabel=label) {
@@ -45,7 +73,7 @@ function iconButtonLabel(id,label,mode='',visibleLabel=label) {
   const text=button.querySelector?.('.sr-only, .button-label');if(text)text.textContent=visibleLabel;
   if(mode)button.setAttribute('data-mode',mode);else button.removeAttribute?.('data-mode');
 }
-function matchHTML(m, colors=state.colors) { return `${teamHTML(colors[m[0]])}<span class="versus">vs</span>${teamHTML(colors[m[1]])}`; }
+function matchHTML(m, colors=state.colors) { return `${teamHTML(m[0],colors)}<span class="versus">vs</span>${teamHTML(m[1],colors)}`; }
 function render() {
   const clockView=!!state?.clockView;
   nativeHost?.setClockView?.(clockView);
@@ -58,12 +86,13 @@ function render() {
   $('setup').hidden = !!state; $('board').hidden = !state;
   for(const button of document.querySelectorAll('[data-teams]')) {
     const count=Number(button.dataset.teams), profile=profileFor(preferences,count), colors=colorsForTeams(count,profile.colors);
-    button.querySelector('small').textContent=colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · ');
+    button.querySelector('small').textContent=profile.labelMode==='letters'?TEAM_LETTERS.slice(0,count).map(letter=>`Team ${letter}`).join(' · '):(colors ? Object.values(colors).join(' · ') : ['Red','Blue','Green','Black','Yellow'].slice(0,count).join(' · '));
     button.querySelector('.option-timing').textContent=`${formatTime(profile.gameMs)} game · ${formatTime(profile.changeMs)} changeover`;
     button.querySelector('.arrow').textContent='↗';
   }
   $('setup-end-note').textContent=preferences.endEnabled?`Session end: ${preferences.endTime} · ${{hard:'Hard stop',soft:'Finish last game',full:'Full games only'}[preferences.endMode]}`:'';
   if(!state) return;
+  ensureTeamLabels();
   const {teams,game,phase,running,remaining,gameMs,changeMs} = state, changing=phase==='changeover',opening=phase==='countdown';
   const displayed=boardGames(state),main=displayed[0];
   $('team-summary').textContent = `${teams} TEAMS · ${SCHEDULES[teams].length}-GAME ROTATION`;
@@ -72,10 +101,10 @@ function render() {
     const upcoming=displayed[i],m=upcoming.match;
     $(id+'-title').textContent=upcoming.title;
     $(id+'-match').innerHTML=matchHTML(m,upcoming.colors);
-    $(id+'-match').setAttribute('aria-label',`${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}`);
+    $(id+'-match').setAttribute('aria-label',`${matchupName(m[0],upcoming.colors)} versus ${matchupName(m[1],upcoming.colors)}`);
     if(i>0) {
       $(id+'-card').disabled=!!state.finished;
-      $(id+'-card').setAttribute('aria-label',`Jump to game ${upcoming.game}: ${upcoming.colors[m[0]]} versus ${upcoming.colors[m[1]]}. Timer resets and pauses.`);
+      $(id+'-card').setAttribute('aria-label',`Jump to game ${upcoming.game}: ${matchupName(m[0],upcoming.colors)} versus ${matchupName(m[1],upcoming.colors)}. Timer resets and pauses.`);
     }
     if(i>0) $(id+'-number').textContent=`${state.pendingTeams?'NEW CYCLE · ':''}GAME ${upcoming.game}`;
   }
@@ -84,8 +113,9 @@ function render() {
   $('add-team').disabled=planned===5;$('remove-team').disabled=planned===2;
   $('roster-count').textContent=state.pendingTeams?(teams===planned?`${teams} teams · queued`:`${teams} → ${planned} teams`):`${teams} teams`;
   const roster=state.pendingTeams?.colors || state.colors;
-  $('roster-help').textContent=`${state.pendingTeams?'Next roster':'Playing'}: ${Object.values(roster).join(', ')}. Added colors are for this session only.`;
-  $('team-change-status').textContent=state.pendingTeams?`${planned} teams queued: ${Object.values(roster).join(', ')}. Current game and changeover finish first, then a fresh cycle. No catch-up games.`:'';
+  const rosterNames=Object.entries(roster).map(([team,color])=>identityName(color,team));
+  $('roster-help').textContent=`${state.pendingTeams?'Next roster':'Playing'}: ${rosterNames.join(', ')}. Added teams are for this session only.`;
+  $('team-change-status').textContent=state.pendingTeams?`${planned} teams queued: ${rosterNames.join(', ')}. Current game and changeover finish first, then a fresh cycle. No catch-up games.`:'';
   $('cancel-team-change').hidden=!state.pendingTeams;
   const secs=Math.max(0,Math.ceil(remaining/1000)); $('timer').textContent=`${Math.floor(secs/60).toString().padStart(2,'0')}:${(secs%60).toString().padStart(2,'0')}`;
   $('timer').setAttribute('aria-label',`${opening?'Session start':changing?'Changeover':'Game'} countdown`);
@@ -119,7 +149,8 @@ function render() {
   $('upcoming-games').disabled=false;$('upcoming-games-card').disabled=false;
   $('start').disabled=preparingStart;$('next').disabled=false;$('restart-game').disabled=false;
   if(preparingStart)$('start').textContent='Preparing audio…';
-  $('transition').textContent=shared.length?`Back-to-back: ${shared.join(' & ')} ${shared.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
+  const sharedNames=shared.map(color=>identityName(color));
+  $('transition').textContent=sharedNames.length?`Back-to-back: ${sharedNames.join(' & ')} ${sharedNames.length===1?'plays':'play'} again next game. Allow the full changeover.`:'';
 }
 function announce(text) { $('announcement').textContent=text; }
 function playCue(cue) {
@@ -169,7 +200,8 @@ for(const b of document.querySelectorAll('[data-teams]')) b.addEventListener('cl
   const now=Date.now();let ending,elapsedEnd=false;
   try{ending=resolveSessionEnd(preferences,now,true);elapsedEnd=preferences.endEnabled&&!Number.isFinite(ending.endAt);}catch(error){$('setup-error').textContent=error.message;$('setup-settings').focus();return;}
   $('setup-error').textContent='';
-  state={...fresh(teams, colorsForTeams(teams,preferences.colors), preferences.gameMs, preferences.changeMs),...ending,startCountdown:preferences.startCountdown,audio:audioFor(preferences)};
+  const colors=colorsForTeams(teams,preferences.colors);
+  state={...fresh(teams,colors,preferences.gameMs,preferences.changeMs),...ending,startCountdown:preferences.startCountdown,audio:audioFor(preferences),labelMode:labelModeFor(preferences),teamLabels:labelsForColors(colors)};
   persist();render();$('start').focus();
   if(elapsedEnd)announce('The saved end time has passed. This session will run continuously unless you set a new end time in Session settings.');
 });
@@ -202,8 +234,19 @@ function openRosterPicker(action) {
   rosterAction=action;
   const candidates=rosterColorChoices(state,action,preferences.colors);
   $('roster-title').textContent=action==='add'?'Add a team':'Remove a team';
-  $('roster-description').textContent=action==='add'?'Choose the arriving team’s color. This changes only the current session; your saved five colors stay the same.':'Choose one of the teams currently in this session. Only selected teams are listed. The remaining teams keep their colors, and the next cycle starts fresh.';
-  $('roster-color').innerHTML='<option value="" disabled selected>Choose a color</option>'+candidates.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const letters=state.labelMode==='letters';
+  $('roster-description').textContent=letters
+    ? action==='add'?'Add the next lettered team for this session.':'Choose one of the lettered teams currently in this session. The next cycle starts fresh.'
+    : action==='add'?'Choose the arriving team’s color. This changes only the current session; your saved five colors stay the same.':'Choose one of the teams currently in this session. Only selected teams are listed. The remaining teams keep their colors, and the next cycle starts fresh.';
+  const choices=letters&&action==='add'?candidates.slice(0,1):candidates;
+  $('roster-color-label').textContent=letters?'Team':'Team color';
+  $('roster-color').setAttribute('aria-label',letters?'Team to add or remove':'Team color to add or remove');
+  const plannedColors=state.pendingTeams?.colors??state.colors,usedLetters=new Set(Object.values(plannedColors).map(color=>state.teamLabels?.[color]).filter(Boolean));
+  $('roster-color').innerHTML=`<option value="" disabled ${choices.length===1?'':'selected'}>${letters?'Choose a team':'Choose a color'}</option>`+choices.map(color=>{
+    const currentTeam=Object.entries(state.colors).find(([,value])=>value===color)?.[0];
+    const previous=state.teamLabels?.[color],label=action==='add'?(previous&&!usedLetters.has(previous)?previous:TEAM_LETTERS.find(letter=>!usedLetters.has(letter))):(previous??currentTeam);
+    return `<option value="${color}" ${choices.length===1?'selected':''}>${letters?`Team ${label}`:color}</option>`;
+  }).join('');
   $('roster-confirm').textContent=action==='add'?'Add team':'Remove team';
   $('roster-error').textContent='';$('roster-dialog').showModal();
 }
@@ -212,7 +255,13 @@ $('remove-team').onclick=()=>openRosterPicker('remove');
 $('roster-form').onsubmit=event=>{
   event.preventDefault();
   try {
-    tick();sounds.stop();changeTeamRoster(state,rosterAction,$('roster-color').value,Date.now());
+    tick();sounds.stop();const color=$('roster-color').value;
+    if(state.labelMode==='letters'&&rosterAction==='add'){
+      const planned=state.pendingTeams?.colors??state.colors,used=new Set(Object.values(planned).map(value=>state.teamLabels?.[value]).filter(Boolean));
+      const available=TEAM_LETTERS.find(letter=>!used.has(letter));
+      if(available)state.teamLabels[color]=available;
+    }
+    changeTeamRoster(state,rosterAction,color,Date.now());ensureTeamLabels();
     persist();render();$('roster-dialog').close();
     announce(state.pendingTeams?'Roster change queued for next game.':`${state.teams} teams. Fresh cycle ready.`);
   } catch(error){$('roster-error').textContent=error.message;}
@@ -242,6 +291,10 @@ function formatTime(ms) { const sec = Math.ceil(ms/1000); return `${Math.floor(s
 function renderColorFields(colors) {
   $('color-fields').innerHTML = 'ABCDE'.split('').map((t,i) => `<label class="color-field">Team ${i+1}<select name="color-${t}" aria-label="Team ${i+1} color">${PALETTE.map(c=>`<option value="${c}" ${colors[t]===c?'selected':''}>${c}</option>`).join('')}</select></label>`).join('');
 }
+function syncLabelModeFields(){
+  const mode=document.querySelector('[name="team-label-mode"]:checked')?.value??'colors';
+  $('color-settings').hidden=mode==='letters';
+}
 function syncColorOptions() {
   const selects=[...$('color-fields').querySelectorAll('select')];
   for(const select of selects) {
@@ -250,6 +303,7 @@ function syncColorOptions() {
   }
 }
 $('color-fields').addEventListener('change',()=>{syncColorOptions();$('settings-error').textContent='';});
+for(const input of document.querySelectorAll('[name="team-label-mode"]'))input.addEventListener('change',syncLabelModeFields);
 function selectSettingsTab(name,focus=false) {
   for(const tab of document.querySelectorAll('[data-settings-tab]')) {
     const selected=tab.dataset.settingsTab===name;
@@ -284,6 +338,7 @@ function openSettings() {
 function fillSettings() {
   const source=settingsDrafts[settingsTeam];
   renderColorFields(source.colors);
+  document.querySelector(`[name="team-label-mode"][value="${labelModeFor(source)}"]`).checked=true;syncLabelModeFields();
   syncColorOptions();
   $('game-minutes').value=Math.floor(source.gameMs/60000);
   $('game-seconds').value=(source.gameMs/1000)%60;
@@ -326,6 +381,7 @@ function readSettingsDraft() {
   draft.gameMs=gameMs;draft.changeMs=changeMs;
   $('setup-error').textContent='';
   draft.colors={...colors};
+  draft.labelMode=document.querySelector('[name="team-label-mode"]:checked')?.value??'colors';
   draft.sounds=$('sounds-enabled').checked;
   draft.crowd=$('crowd-enabled').checked;
   draft.audioCues=Object.fromEntries(AUDIO_CUES.map(cue=>[cue,$(`${cue}-enabled`).checked]));
@@ -391,6 +447,7 @@ $('session-timing').onclick=()=>{
   $('session-end-mode').value=state.endMode??'hard';
   const minimum=state.minGameMs??Math.min(120000,state.gameMs);
   $('session-min-game-minutes').value=Math.floor(minimum/60000);$('session-min-game-seconds').value=minimum/1000%60;
+  $('session-label-mode').value=labelModeFor(state);
   fillLiveAudio();syncSessionEndFields();selectLiveSettingsTab('session');
   $('session-save-defaults').checked=false;$('session-save-defaults-label').textContent=`Save as the ${state.teams}-team defaults`;
   $('timing-error').textContent='';$('timing-dialog').showModal();
@@ -413,12 +470,13 @@ $('timing-form').onsubmit=event=>{
     const draft=structuredClone(state);
     updateSessionTiming(draft,gameMs,duration('session-change'),now);
     updateSessionEnd(draft,{endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value,endMode:$('session-end-mode').value,minGameMs},now);
-    const audio=readLiveAudio();draft.audio=audio;
+    const audio=readLiveAudio();draft.audio=audio;draft.labelMode=LABEL_MODES.includes($('session-label-mode').value)?$('session-label-mode').value:'colors';
     Object.assign(state,draft);
+    ensureTeamLabels();
     const saveDefaults=$('session-save-defaults').checked;
     if(saveDefaults){
       const teams=state.teams,saved=profileFor(preferences,teams);
-      Object.assign(saved,{gameMs:state.gameMs,changeMs:state.changeMs,...audio,endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value||saved.endTime,endMode:$('session-end-mode').value,minGameMs});
+      Object.assign(saved,{gameMs:state.gameMs,changeMs:state.changeMs,labelMode:state.labelMode,...audio,endEnabled:$('session-end-enabled').checked,endTime:$('session-end-time').value||saved.endTime,endMode:$('session-end-mode').value,minGameMs});
       preferences.profiles[teams]=saved;
       if(preferences.setupTeams===teams)Object.assign(preferences,profileFor(preferences,teams));
     }
@@ -435,7 +493,7 @@ function openUpcomingGames(){
     : `Continuous rotation · showing the next complete ${SCHEDULES[state.pendingTeams?.teams??state.teams].length}-game cycle. Choose one to play it now.`;
   const rows=games.map(game=>{
     const button=document.createElement('button');button.type='button';button.className='upcoming-game';button.dataset.offset=game.offset;
-    button.setAttribute('aria-label',`Play game ${game.game}: ${game.colors[game.match[0]]} versus ${game.colors[game.match[1]]} now`);
+    button.setAttribute('aria-label',`Play game ${game.game}: ${matchupName(game.match[0],game.colors)} versus ${matchupName(game.match[1],game.colors)} now`);
     const label=document.createElement('span');label.className='upcoming-game-number';label.textContent=`GAME ${game.game}`;
     const match=document.createElement('span');match.className='upcoming-game-match';match.innerHTML=matchHTML(game.match,game.colors);
     const time=document.createElement('span');time.className='upcoming-game-time';time.textContent=Number.isFinite(state.endAt)?new Date(game.kickoff).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}):'Play now';
@@ -465,7 +523,12 @@ function openSessionSummary() {
   $('summary-games').textContent=String(summary.totalGames);
   const rows=summary.teams.map(team=>{
     const row=document.createElement('div');row.className='summary-row';row.setAttribute('role','row');
-    const name=document.createElement('span');name.setAttribute('role','cell');const color=document.createElement('i');color.className='summary-color';color.dataset.color=team.color;name.append(color,team.color);
+    const name=document.createElement('span');name.setAttribute('role','cell');
+    if(state.labelMode==='letters'){
+      const marker=document.createElement('i');marker.className='summary-letter';marker.textContent=state.teamLabels?.[team.color]??'?';name.append(marker,identityName(team.color));
+    } else {
+      const color=document.createElement('i');color.className='summary-color';color.dataset.color=team.color;name.append(color,team.color);
+    }
     const games=document.createElement('strong');games.setAttribute('role','cell');games.textContent=team.games;
     const time=document.createElement('strong');time.setAttribute('role','cell');time.textContent=summaryTime(team.playingMs);row.append(name,games,time);return row;
   });
@@ -481,7 +544,7 @@ $('summary-back-to-selection').onclick=()=>{$('session-summary-dialog').close();
 document.addEventListener('keydown',event=>{
   if(event.key==='Escape' && state?.clockView && !document.querySelector('dialog[open]')){event.preventDefault();toggleClockView();}
 });
-$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:state.startCountdown,audio:audioFor(state.audio??preferences),...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('timing-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
+$('restart').onclick=()=>{sounds.stop();state={...fresh(state.teams, state.colors, state.gameMs, state.changeMs),sessionRoster:!!state.sessionRoster,clockView:!!state.clockView,startCountdown:state.startCountdown,audio:audioFor(state.audio??preferences),labelMode:state.labelMode,teamLabels:{...state.teamLabels},...(Number.isFinite(state.endAt)?{endAt:state.endAt,endMode:state.endMode,minGameMs:state.minGameMs}:{})};persist();render();$('options-dialog').close();$('timing-dialog').close();$('start').focus();announce('Rotation restarted at game 1. Timer paused.');};
 function backToSelection(){sounds.stop();state=null;persist();render();$('options-dialog').close();$('timing-dialog').close();$('setup-settings').focus();}
 $('back-to-selection').onclick=backToSelection;
 $('home-link').onclick=event=>{event.preventDefault();backToSelection();};
@@ -493,7 +556,7 @@ $('schedule-button').onclick=()=>{
   $('audit-details').textContent=a.conflicts.length?(state.teams>=4?'Exact supplied schedule: consecutive appearances at ':'Repeating schedule: consecutive appearances at ')+a.conflicts.map(c=>`${colorName(c.team)}, ${c.from}→${c.to}`).join('; ')+(state.teams===4 ? '. Four teams cannot play all six unique matchups without consecutive appearances: after any pairing, the only disjoint pairing is its complement.' : state.teams===3 ? '. With three teams, every two matchups share one team. Each team plays twice per loop and rests at most one game.' : '. With two teams, both teams play every game. Use the changeover for a break.'):'Verified across the loop boundary: no consecutive appearances. Every team rests at most two games.';
   $('team-history').replaceChildren();
   for(const item of state.teamHistory || []) {
-    const row=document.createElement('p');row.textContent=`${item.teams} teams · ended after game ${item.lastGame} · ${Object.values(item.colors).join(', ')}`;
+    const row=document.createElement('p');row.textContent=`${item.teams} teams · ended after game ${item.lastGame} · ${Object.entries(item.colors).map(([team,color])=>identityName(color,team)).join(', ')}`;
     $('team-history').append(row);
   }
   $('team-history-section').hidden=!(state.teamHistory?.length);
@@ -504,7 +567,7 @@ for(const button of document.querySelectorAll('[data-sound]')) button.onclick=as
   const ready=await sounds.unlock();
   if(!$('options-dialog').open || $('settings-audio-panel').hidden)return;
   $('sound-status').textContent=ready ? 'Preview playing. Check your device volume.' : 'Audio unavailable. Check browser and device sound settings.';
-  if(ready){sounds.stop();const cue=button.dataset.sound;if(cue==='countdown')sounds.previewCountdown();else if(cue==='lineup')sounds.sayTeams(['Red','Blue'],['Purple','Black']);else {sounds.play(cue,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});if(WARNING_CUES.includes(cue)&&$('lineup-enabled').checked&&$(`${cue}-callout-enabled`).checked)sounds.sayDeck(['Green','Black'],{delay:sounds.duration(cue)+0.2,replace:false});}
+  if(ready){sounds.stop();const cue=button.dataset.sound,letters=document.querySelector('[name="team-label-mode"]:checked')?.value==='letters',up=letters?['A','B']:['Red','Blue'],deck=letters?['C','D']:['Purple','Black'];if(cue==='countdown')sounds.previewCountdown();else if(cue==='lineup')sounds.sayTeams(up,deck);else {sounds.play(cue,{crowd:$('sounds-enabled').checked && $('crowd-enabled').checked});if(WARNING_CUES.includes(cue)&&$('lineup-enabled').checked&&$(`${cue}-callout-enabled`).checked)sounds.sayDeck(deck,{delay:sounds.duration(cue)+0.2,replace:false});}
     if(sounds.failedAssets.length)$('sound-status').textContent='Some recordings could not load. Available fallback cues will play. Reopen online to reload audio.';}
 };
 for(const button of document.querySelectorAll('[data-session-sound]')) button.onclick=async()=>{
@@ -514,11 +577,12 @@ for(const button of document.querySelectorAll('[data-session-sound]')) button.on
   $('session-sound-status').textContent=ready?'Preview playing. Check your device volume.':'Audio unavailable. Check browser and device sound settings.';
   if(ready){
     sounds.stop();const cue=button.dataset.sessionSound;
+    const letters=$('session-label-mode').value==='letters',up=letters?['A','B']:['Red','Blue'],deck=letters?['C','D']:['Purple','Black'];
     if(cue==='countdown')sounds.previewCountdown();
-    else if(cue==='lineup')sounds.sayTeams(['Red','Blue'],['Purple','Black']);
+    else if(cue==='lineup')sounds.sayTeams(up,deck);
     else {
       sounds.play(cue,{crowd:$('session-sounds-enabled').checked&&$('session-crowd-enabled').checked});
-      if(WARNING_CUES.includes(cue)&&$('session-lineup-enabled').checked&&$(`session-${cue}-callout-enabled`).checked)sounds.sayDeck(['Green','Black'],{delay:sounds.duration(cue)+0.2,replace:false});
+      if(WARNING_CUES.includes(cue)&&$('session-lineup-enabled').checked&&$(`session-${cue}-callout-enabled`).checked)sounds.sayDeck(deck,{delay:sounds.duration(cue)+0.2,replace:false});
     }
     if(sounds.failedAssets.length)$('session-sound-status').textContent='Some recordings could not load. Available fallback cues will play. Reopen online to reload audio.';
   }

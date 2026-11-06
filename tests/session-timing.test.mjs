@@ -63,15 +63,15 @@ test('removing a hard stop restores the unused portion of a shortened running ga
 test('old preferences seed four independent profiles without losing explicit choices',()=>{
  const storage=memory();storage.setItem(PREF_KEY,JSON.stringify({setupTeams:3,gameMs:300000,changeMs:45000,sounds:false,endEnabled:false,colors:{A:'Purple',B:'Blue',C:'Green',D:'White',E:'Yellow'}}));
  const p=loadPreferences(storage);
- for(const teams of [2,3,4,5]){const profile=profileFor(p,teams);assert.equal(profile.gameMs,300000);assert.equal(profile.sounds,false);assert.equal(profile.colors.A,'Purple');}
- p.profiles[2].colors.A='Red';p.profiles[2].audioCues.minute=false;
- assert.equal(p.profiles[5].colors.A,'Purple');assert.equal(p.profiles[5].audioCues.minute,true);
+ for(const teams of [2,3,4,5]){const profile=profileFor(p,teams);assert.equal(profile.gameMs,300000);assert.equal(profile.sounds,false);assert.equal(profile.colors.A,'Purple');assert.equal(profile.labelMode,'colors');}
+ p.profiles[2].colors.A='Red';p.profiles[2].audioCues.minute=false;p.profiles[2].labelMode='letters';
+ assert.equal(p.profiles[5].colors.A,'Purple');assert.equal(p.profiles[5].audioCues.minute,true);assert.equal(p.profiles[5].labelMode,'colors');
 });
 test('separate defaults survive reload and session edits never replace them',()=>{
  const storage=memory(),p=loadPreferences(storage);
- for(const teams of [2,3,4,5]){selectProfile(p,teams);p.gameMs=teams*60000;p.changeMs=teams*10000;p.sounds=teams!==3;savePreferences(storage,p);}
+ for(const teams of [2,3,4,5]){selectProfile(p,teams);p.gameMs=teams*60000;p.changeMs=teams*10000;p.sounds=teams!==3;p.labelMode=teams===4?'letters':'colors';savePreferences(storage,p);}
  let loaded=loadPreferences(storage);
- for(const teams of [2,3,4,5]){selectProfile(loaded,teams);assert.equal(loaded.gameMs,teams*60000);assert.equal(loaded.changeMs,teams*10000);assert.equal(loaded.sounds,teams!==3);}
+ for(const teams of [2,3,4,5]){selectProfile(loaded,teams);assert.equal(loaded.gameMs,teams*60000);assert.equal(loaded.changeMs,teams*10000);assert.equal(loaded.sounds,teams!==3);assert.equal(loaded.labelMode,teams===4?'letters':'colors');}
  const session=fresh(5,undefined,loaded.gameMs,loaded.changeMs);toggle(session,0);updateSessionTiming(session,90000,7000,1000);
  const resumed=JSON.parse(JSON.stringify(session));savePreferences(storage,loaded);loaded=loadPreferences(storage);
  assert.equal(resumed.gameMs,90000);assert.equal(loaded.gameMs,300000);assert.equal(loaded.changeMs,50000);

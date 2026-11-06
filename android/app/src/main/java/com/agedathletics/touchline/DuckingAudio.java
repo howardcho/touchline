@@ -7,6 +7,7 @@ import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaPlayer;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -17,8 +18,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 
 /** Transient focus ducks other media only during cues and short gaps between them. */
 final class DuckingAudio {
@@ -28,7 +32,7 @@ final class DuckingAudio {
         Clip(String file,double duration){this.file=file;this.duration=duration;}
     }
     private static final class Entry {
-        final String group; Runnable start,cutoff; MediaPlayer player;
+        final String group; Runnable start,cutoff; MediaPlayer player; String utteranceId;
         Entry(String group){this.group=group;}
     }
     private final Context context;
@@ -37,6 +41,8 @@ final class DuckingAudio {
     private final AudioManager manager;
     private final AudioAttributes attributes;
     private final AudioFocusRequest focusRequest;
+    private TextToSpeech speech;
+    private volatile boolean speechReady;
     private volatile Map<String,Clip> clips = Collections.emptyMap();
     private final Map<UUID,Entry> entries = new HashMap<>();
     private boolean focused;
@@ -51,6 +57,16 @@ final class DuckingAudio {
         focusRequest=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(attributes).setAcceptsDelayedFocusGain(false).setWillPauseWhenDucked(true)
             .setOnAudioFocusChangeListener(change->{if(change<0)stop();},handler).build();
+        speech=new TextToSpeech(context,status->handler.post(()->configureSpeech(status)));
+    }
+    private void configureSpeech(int status) {
+        if(status!=TextToSpeech.SUCCESS||speech==null)return;
+        speechReady=true;speech.setLanguage(Locale.UK);speech.setAudioAttributes(attributes);
+        speech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+            @Override public void onStart(String id) {}
+            @Override public void onDone(String id) {handler.post(()->finishSpeech(id));}
+            @Override public void onError(String id) {handler.post(()->{onError.accept("Unable to speak the team callout.");finishSpeech(id);});}
+        });
     }
 
     // Called on the bridge thread; publish the complete catalog atomically.
@@ -95,6 +111,10 @@ final class DuckingAudio {
                 if(clip==null || !validGroup(group) || !inRange(delay,0,60) || !inRange(duration,0.001,120) || !inRange(volume,0,1))
                     throw new IllegalArgumentException("Invalid audio command");
                 schedule(clip,group,delay,Math.min(duration,clip.duration),(float)volume);break;
+            case "speak":
+                String text=command.getString("text");double speechDelay=command.getDouble("at"),rate=command.getDouble("rate");
+                if(text.trim().isEmpty()||text.length()>240||!inRange(speechDelay,0,60)||!inRange(rate,0.7,1.3))throw new IllegalArgumentException("Invalid speech command");
+                scheduleSpeech(text,speechDelay,(float)rate);break;
             case "stopGroup":
                 String selected=command.getString("group");
                 if(!validGroup(selected))throw new IllegalArgumentException("Invalid audio group");
@@ -149,11 +169,28 @@ final class DuckingAudio {
         };
         entries.put(id,entry);handler.postDelayed(entry.start,Math.round(delay*1000)+lead);
     }
+    private void scheduleSpeech(String text,double delay,float rate) {
+        if(!speechReady)throw new IllegalStateException("Device speech is not ready yet.");
+        UUID id=UUID.randomUUID();Entry entry=new Entry("voice");entry.utteranceId=id.toString();
+        long lead=SystemClock.uptimeMillis()<primedUntil?0:DUCK_LEAD_MS;
+        handler.removeCallbacks(release);acquireFocus();
+        entry.start=()->{
+            if(!entries.containsKey(id))return;
+            speech.setSpeechRate(rate);
+            Bundle options=new Bundle();options.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME,1f);
+            if(speech.speak(text,TextToSpeech.QUEUE_FLUSH,options,entry.utteranceId)==TextToSpeech.ERROR){onError.accept("Unable to speak the team callout.");finish(id);}
+        };
+        entries.put(id,entry);handler.postDelayed(entry.start,Math.round(delay*1000)+lead);
+    }
+    private void finishSpeech(String utteranceId) {
+        for(Map.Entry<UUID,Entry> item:new ArrayList<>(entries.entrySet()))if(utteranceId.equals(item.getValue().utteranceId)){finish(item.getKey());return;}
+    }
     private void remove(UUID id) {
         Entry entry=entries.remove(id);if(entry==null)return;
         handler.removeCallbacks(entry.start);
         if(entry.cutoff!=null)handler.removeCallbacks(entry.cutoff);
         if(entry.player!=null){entry.player.setOnCompletionListener(null);entry.player.setOnErrorListener(null);entry.player.release();}
+        if(entry.utteranceId!=null)speech.stop();
     }
     private void finish(UUID id){remove(id);releaseIfIdle();}
     private void releaseIfIdle() {
@@ -168,4 +205,5 @@ final class DuckingAudio {
         for(UUID id:new ArrayList<>(entries.keySet()))remove(id);
         abandonFocus();
     }
+    void shutdown() {stop();speechReady=false;if(speech!=null)speech.shutdown();}
 }

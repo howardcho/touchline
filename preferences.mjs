@@ -2,6 +2,8 @@ import {END_MODES,validEndTime} from './session.mjs';
 import {GAME_MS, CHANGE_MS, MAX_DURATION_MS, validColors, TEAM_COUNTS, completeColors} from './engine.mjs';
 export const AUDIO_CUES = Object.freeze(['start','minute','thirty','ten','whistle','countdown','lineup']);
 export const WARNING_CUES = Object.freeze(['minute','thirty','ten']);
+export const LABEL_MODES = Object.freeze(['colors','letters']);
+export const labelModeFor = source => LABEL_MODES.includes(source?.labelMode) ? source.labelMode : 'colors';
 const DEFAULT_WARNING_CALLOUTS = Object.freeze({minute:false,thirty:false,ten:true});
 export function soundEnabled(preferences,cue) {
   if(!preferences.sounds)return false;
@@ -32,6 +34,7 @@ function normalize(raw, legacy) {
     crowd: typeof raw.crowd === 'boolean' ? raw.crowd : true,
     startCountdown: typeof raw.startCountdown==='boolean'?raw.startCountdown:true,
     keepAwake: typeof raw.keepAwake==='boolean'?raw.keepAwake:true,
+    labelMode: labelModeFor(raw),
     ...audioFor(raw),
     endEnabled: typeof raw.endEnabled==='boolean'?raw.endEnabled:true,
     endTime: validEndTime(raw.endTime)?raw.endTime:'23:59',
@@ -40,7 +43,7 @@ function normalize(raw, legacy) {
     colors: validColors(5,raw.colors) ? {...raw.colors} : completeColors(older)
   };
 }
-const PROFILE_KEYS = ['gameMs','changeMs','colors','sounds','crowd','audioCues','warningCallouts','startCountdown','endEnabled','endTime','endMode','minGameMs'];
+const PROFILE_KEYS = ['gameMs','changeMs','colors','labelMode','sounds','crowd','audioCues','warningCallouts','startCountdown','endEnabled','endTime','endMode','minGameMs'];
 export function profileFor(preferences, teams) {
   const source=preferences.profiles?.[teams] ?? preferences;
   return structuredClone(Object.fromEntries(PROFILE_KEYS.map(key=>[key,source[key]])));

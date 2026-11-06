@@ -28,7 +28,10 @@ export class NativeMatchSounds extends MatchSounds {
   stopGroup(group) {this.send({action:'stopGroup',group});}
   stopSpeech() {this.stopGroup('voice');}
   stop() {super.stop();this.send({action:'stop'});}
-  speak() {return false;} // All shipped speech is bundled and played natively.
+  speak(text,rate=1,delay=0) {
+    if(typeof text!=='string'||!text.trim())return false;
+    return this.send({action:'speak',text,rate,at:delay});
+  }
 }
 export function createMatchSounds(host=globalThis) {
   const bridge=host.touchlineNative?.audio ?? host.webkit?.messageHandlers?.touchlineAudio;

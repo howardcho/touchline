@@ -59,3 +59,9 @@ test('lineup colors follow the next cycle after a queued chosen-team removal',as
  assert.deepEqual(lineupFor(s).up,['Red','Green']);assert.deepEqual(lineupFor(s).deck,['Black','Yellow']);
  assert.match(lineupFor(s).text,/Team Red and team Green, you're up!/);
 });
+test('lineup callouts use persistent letter names when letter mode is selected',async()=>{
+ const {lineupFor}=await import('../sounds.mjs');
+ const s=fresh(4);s.labelMode='letters';s.teamLabels={Red:'A',Blue:'B',Green:'C',Black:'D'};
+ assert.deepEqual(lineupFor(s,0).up,['A','B']);assert.deepEqual(lineupFor(s).up,['C','D']);
+ assert.match(lineupFor(s).upText,/Team C and team D, you're up!/);
+});
