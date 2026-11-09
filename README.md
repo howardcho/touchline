@@ -11,6 +11,13 @@ Both apps bundle the interface and all audio for offline use. Native audio ducks
 
 ## What Touchline does
 
+Touchline has two sideline tools:
+
+- **Team Rotations** schedules games among two to five teams.
+- **Team Substitutions** keeps playing time balanced within one team using up to six independently timed rotation groups.
+
+Team Rotations includes:
+
 - Repeating rotations for two to five teams, labeled with ordered colors or Team A–E.
 - Large now-playing and up-next matchups, plus a tappable list of every game that fits before the session ends.
 - Optional game/changeover timers, a five-second opening countdown, pause/resume, restart, and ±30-second controls.
@@ -19,6 +26,14 @@ Both apps bundle the interface and all audio for offline use. Native audio ducks
 - Team naming, session timing, finish rules, and audio can be changed during play; an optional checkbox saves those choices as that team count's defaults.
 - Saved defaults for each team count, plus session-only timing and roster changes.
 - Optional weekday-specific session end times with hard stop, finish-last-game, or full-games-only rules.
+
+Team Substitutions includes:
+
+- Player names and/or numbers, ordered group rotations, optional game-by-game randomization, and editable starting lineups.
+- Halves or quarters, group-specific substitution intervals and offsets, a minimum-stint rule at period breaks, and up to six groups whose field slots add up to the lineup size.
+- Live period and group clocks, ten-second visual/audio substitution warnings, group or individual forced substitutions, and a Resume play workflow.
+- Game-day roster changes for absences, late arrivals, early departures, and moves between groups without trying to make up missed time.
+- A final playing-time report for every player and rotation group. Defaults and active games are stored locally for recovery.
 
 See the [app behavior and schedule guide](native/USER_GUIDE.md) and [audio credits](audio/CREDITS.txt). Complete rotations give equal game counts; two-, three-, and four-team schedules include consecutive appearances, while the five-team loop avoids them.
 
@@ -39,8 +54,8 @@ Open http://localhost:8080. Website edits do not change installed native apps.
 ## Shared native app source
 
 - `native/index.html`: app structure and dialogs, packaged only into the native apps.
-- Root `.mjs` files and `styles.css`: shared schedules, timers, rendering, settings, and native audio adapter.
-- `audio/`: 100 bundled recordings and credits.
+- Root `.mjs` files and `styles.css`: shared team schedules, substitution engine, timers, rendering, settings, and native audio adapter.
+- `audio/`: 101 bundled recordings and credits.
 - `ios/`: native iPad host and audio ducking.
 - `android/`: native Android host, audio focus, screen wake, and immersive mode.
 - `docs/`: public Aged Athletics website and screenshot assets.

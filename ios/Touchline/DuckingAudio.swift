@@ -51,7 +51,7 @@ final class DuckingAudio: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDe
     private func loadClips() throws {
         let root = Bundle.main.resourceURL!.appendingPathComponent("Web/audio")
         let palette = ["Red", "Blue", "Green", "Black", "Yellow", "Orange", "Purple", "Pink", "White", "Gray"]
-        var files = ["referee": "referee.mp3", "crowd": "crowd.mp3", "minute": "minute.mp3", "thirty": "thirty.mp3", "ten": "ten.mp3"]
+        var files = ["referee": "referee.mp3", "crowd": "crowd.mp3", "minute": "minute.mp3", "thirty": "thirty.mp3", "ten": "ten.mp3", "substitution": "substitution.mp3"]
         for n in 1...5 { files["count-\(n)"] = "count-\(n).mp3" }
         for (i, first) in palette.enumerated() {
             for second in palette.dropFirst(i + 1) {

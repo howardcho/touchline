@@ -13,7 +13,7 @@ export function calloutKey(pair,role) {
 }
 export const AUDIO_FILES = Object.freeze({
   ...Object.fromEntries(TEAM_CALLOUTS.map(({key,file})=>[key,file])),
-  referee:'referee.mp3', crowd:'crowd.mp3', minute:'minute.mp3', thirty:'thirty.mp3', ten:'ten.mp3',
+  referee:'referee.mp3', crowd:'crowd.mp3', minute:'minute.mp3', thirty:'thirty.mp3', ten:'ten.mp3', substitution:'substitution.mp3',
   ...Object.fromEntries([1,2,3,4,5].map(n=>[`count-${n}`,`count-${n}.mp3`]))
 });
 export const SOUND_PLANS = {
@@ -169,6 +169,7 @@ export class MatchSounds {
       return this.speak({minute:'One minute remaining',thirty:'Thirty seconds remaining',ten:'Ten seconds remaining'}[name]);
     }
     if(name==='crowd')return this.recorded('crowd',{volume:0.45,group:'crowd'});
+    if(name==='substitution'){this.stopGroup('effect');return this.recorded('substitution',{volume:1,group:'effect'});}
     if(name==='start'){this.stopGroup('crowd');this.stopGroup('whistle');this.stopSpeech();}
     if((name==='start'||name==='whistle') && this.buffers.has('referee')) {
       this.stopGroup('whistle');

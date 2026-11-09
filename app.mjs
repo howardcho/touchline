@@ -1,6 +1,7 @@
 import {resolveSessionEnd,updateSessionEnd,END_MODES,validEndTime,prepareSessionGame,sessionBoundary} from './session.mjs';
 import {loadPreferences, savePreferences, durationOK, profileFor, selectProfile, AUDIO_CUES, WARNING_CUES, LABEL_MODES, WEEKDAYS, labelModeFor, endScheduleFor, endSettingsForDate, audioFor, soundEnabled, warningCalloutEnabled} from './preferences.mjs';
 import {createMatchSounds} from './native-audio.mjs';
+import {createSubstitutionApp} from './substitutions-ui.mjs';
 import {timerCue, timerLeadCue, changeoverCount, lineupFor} from './sounds.mjs';
 import {summarizeSession} from './stats.mjs';
 import {SCHEDULES, TEAM_COUNTS, PALETTE, validColors, applySettings, colorsForTeams, completeColors, GAME_MS, CHANGE_MS, MAX_DURATION_MS, matchup, audit, fresh, settle, toggle, move, restartGame, adjustTime, updateSessionTiming, jumpToBoardGame, jumpToUpcomingGame, upcomingGames, changeTeamRoster, upcomingGame, boardGames, consecutiveColors, rosterColorChoices, endSession} from './engine.mjs';
@@ -649,3 +650,4 @@ window.addEventListener('pagehide',persist);
 restore();if(state){delete state.premiumUnlocked;delete state.accessLimitMs;delete state.accessEndAt;if(state.finishReason==='premium-limit'){delete state.finished;delete state.finishedAt;delete state.finishReason;state.running=false;state.deadline=null;state.remaining=state.phase==='game'?state.gameMs:state.changeMs;}settle(state,Date.now());}persist();render();setInterval(tick,200);setInterval(()=>{if(state?.running)persist();},5000);
 if(nativeHost)$('install-button').hidden=true;
 if(!nativeHost && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+createSubstitutionApp({sounds});

@@ -2,6 +2,8 @@
 
 These controls and schedules apply to the iPad and Android apps. Install using the platform guides in `ios/README.md` and `android/README.md`. Device settings are stored locally inside each native app.
 
+Touchline opens with two tools. **Team Rotations** runs the multi-team game schedule described below. **Team Substitutions** manages playing time for the players within one team.
+
 ## Saved preferences and sound
 
 The app uses `localStorage`, rather than cookies, to keep game duration, changeover duration, sound and crowd preferences, team naming, and team colors inside the native app. Defaults are stored separately for 2-, 3-, 4-, and 5-team sessions and survive refresh and normal browser reopening. Each team count can use ordered color names or letter names from Team A through Team E. Keep screen awake is a shared device preference. Current game, timer progress, and session-only overrides are stored separately for refresh recovery. Ending a session and selecting teams again restores that team count’s saved defaults. Clearing app storage or uninstalling the native app can remove them. Settings do not transfer between devices or between the native app installations. If storage is blocked, the app displays a message and keeps settings for the current page only. Older saved sessions migrate to a 30-second changeover and color naming.
@@ -31,6 +33,26 @@ On short landscape phone screens, the regular board uses a compact one-screen la
 You can also tap the red **stop-square** button below the game board at any time. After confirmation, Touchline stops the active game and shows a match report with games played and actual timer-running time for every team, average playing time across all participating teams, and total elapsed session time. Pauses count toward total session time but not team playing time. A restarted game discards its false-start time; a partial game counts when it contains recorded playing time. Close the report to review the finished board, or use the report icon to reopen it.
 
 In **Settings → Audio**, **Team callouts** enables matchup announcements. Each one-minute, 30-second, and 10-second warning has its own **Team callout** checkbox. By default, the 10-second warning announces the next matchup as “on deck”; the earlier warnings do not. At the final whistle it calls only those same teams “up”; the following matchup is not announced there. Actual session names and queued roster changes are respected. Color callouts use bundled higher-energy announcer recordings; letter callouts use the device's offline English voice so Team A–E are announced correctly. The full-time whistle plays first when enabled; crowd volume is reduced beneath the callout. Countdown and kickoff take priority and cancel unfinished callouts, especially with short changeovers. Two-team sessions omit matchup callouts because the same two teams play every game. No teams are announced after a session’s final game. Pause, navigation, and returning to selection cancel pending speech. Manual **Next game** calls out only the newly selected matchup; Previous stays quiet. Use **Test** beside Team callouts to preview the active naming style. The master sound switch, Team callouts switch, and warning-specific callout checkboxes control them independently.
+
+## Team Substitutions
+
+Open **Team Substitutions → Roster & rotation settings** to create the saved team plan. Add each player by name, number, or both, then use the arrows to set their rotation order. Every player begins in **All Players**. You can rename that group or create as many as six groups, such as Goalkeepers, Defenders, Midfield, and Strikers. **Randomize each game** shuffles only that group when a new game is prepared; otherwise Touchline follows the displayed order.
+
+Set the total players on the field, then assign each group its number of field slots. The group slots must add up to the full lineup. Each group also has:
+
+- **Rotate each time:** how many on-field players that group changes together.
+- **Every:** the time between that group’s substitutions.
+- **Offset:** extra time before the group’s first substitution, useful for staggering groups that otherwise share an interval.
+
+Choose halves or quarters, the duration of each period, and the minimum playing time. At a period break, a group whose next stint has less than the minimum remaining rotates before the next lineup is shown. Timer inputs accept overflow values such as 61 seconds and normalize them when the settings reopen.
+
+Tap **Prepare game** to create the game-day roster. These changes affect only the game unless **Save this roster and group assignment as defaults** is selected. Add temporary players, remove absences, or move players between groups. Unassigned players remain visible until placed into a group. Tap **Review starting lineup**, then use **Bench** followed by **Start** to swap any two players in the same group before kickoff.
+
+During play, the large clock shows the period time. Every group card shows its own next-substitution countdown and the players going out and in. At ten seconds, the card flashes and Touchline plays the substitution chime. When a group reaches zero, the game clock pauses so the change can be made. Tap **Make substitution**, then **Resume play** when the referee restarts the match. **Substitute now** forces a whole group change early; **Sub** beside one player replaces that player with the next available player in the same group. A forced change pauses play and starts that group’s next interval from the substitution.
+
+The roster and settings buttons remain available during the game. A late arrival starts with zero recorded time and can be placed at the front of the next rotation; Touchline does not try to make up time they missed. Removing a player records them as having left early. In-game settings remain session-only unless **Replace saved substitution defaults** is selected.
+
+At halftime or a quarter break, Touchline records the completed period and presents the next lineup. At full time—or after using **End game**—the playing-time report shows the total elapsed game, average player time, and each player’s recorded field time grouped by rotation group. Paused time contributes to elapsed game time but never to player field time.
 
 ## Exact schedules and validation
 
