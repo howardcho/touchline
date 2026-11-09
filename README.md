@@ -31,7 +31,8 @@ Team Substitutions includes:
 
 - Player names and/or numbers, ordered group rotations, optional game-by-game randomization, and editable starting lineups.
 - Halves or quarters, group-specific substitution intervals and offsets, a minimum-stint rule at period breaks, and up to six groups whose field slots add up to the lineup size.
-- Live period and group clocks, ten-second visual/audio substitution warnings, group or individual forced substitutions, and a Resume play workflow.
+- Live period and group clocks, ten-second visual/audio substitution warnings, group or individual forced substitutions, and a choice to pause the game clock during changes or let it continue running.
+- Compact group tabs across roster, lineup, settings, and live play. The live group panel combines the players on the field with the next planned change.
 - Game-day roster changes for absences, late arrivals, early departures, and moves between groups without trying to make up missed time.
 - A final playing-time report for every player and rotation group. Defaults and active games are stored locally for recovery.
 

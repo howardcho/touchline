@@ -11,7 +11,7 @@ const idFor=(prefix,index)=>`${prefix}-${index+1}`;
 export const playerLabel=player=>clean(player?.name)||clean(player?.number)?[clean(player?.number)&&`#${clean(player.number)}`,clean(player?.name)].filter(Boolean).join(' '):'Unnamed player';
 
 export function defaultSubstitutionPreferences(){
-  return {fieldPlayers:7,periods:2,periodMs:25*60*1000,minimumMs:60*1000,groups:[{id:'group-1',name:'All Players',onField:7,rotateCount:1,intervalMs:5*60*1000,offsetMs:0,random:false,playerIds:[]}],players:[]};
+  return {fieldPlayers:7,periods:2,periodMs:25*60*1000,minimumMs:60*1000,pauseForSubstitutions:true,groups:[{id:'group-1',name:'All Players',onField:7,rotateCount:1,intervalMs:5*60*1000,offsetMs:0,random:false,playerIds:[]}],players:[]};
 }
 
 export function normalizeSubstitutionPreferences(raw={}){
@@ -36,7 +36,7 @@ export function normalizeSubstitutionPreferences(raw={}){
     }
     for(const player of players)if(player.active&&player.groupId===group.id&&!claimed.has(player.id)){group.playerIds.push(player.id);claimed.add(player.id);}
   }
-  return {fieldPlayers:count(raw.fieldPlayers,defaults.fieldPlayers,1,30),periods:[2,4].includes(raw.periods)?raw.periods:defaults.periods,periodMs:duration(raw.periodMs,defaults.periodMs),minimumMs:duration(raw.minimumMs,defaults.minimumMs),groups,players};
+  return {fieldPlayers:count(raw.fieldPlayers,defaults.fieldPlayers,1,30),periods:[2,4].includes(raw.periods)?raw.periods:defaults.periods,periodMs:duration(raw.periodMs,defaults.periodMs),minimumMs:duration(raw.minimumMs,defaults.minimumMs),pauseForSubstitutions:raw.pauseForSubstitutions!==false,groups,players};
 }
 
 export function validateSubstitutionConfig(source,{requireRoster=true}={}){
@@ -81,14 +81,19 @@ export const currentLineup=state=>state.config.groups.flatMap(group=>onFieldIds(
 function addPlayingTime(state,ms){if(ms<=0)return;for(const id of currentLineup(state))state.playMs[id]=(state.playMs[id]??0)+ms;}
 export function advanceSubstitutionSession(state,now=Date.now()){
   const events=[];if(!state?.running||state.finished)return events;
-  let elapsed=Math.max(0,now-state.lastTick);const activeGroups=state.config.groups.filter(group=>benchIds(state,group.id).length>0);
-  const untilDue=activeGroups.length?Math.min(...activeGroups.map(group=>Math.max(0,sessionGroup(state,group.id).dueMs))):Infinity;
-  const step=Math.min(elapsed,state.remaining,untilDue);addPlayingTime(state,step);state.remaining=Math.max(0,state.remaining-step);
-  for(const group of activeGroups){const live=sessionGroup(state,group.id),before=live.dueMs;live.dueMs=Math.max(0,before-step);if(!live.alerted&&before>10000&&live.dueMs<=10000){live.alerted=true;events.push({type:'soon',groupId:group.id});}}
+  let elapsed=Math.max(0,now-state.lastTick);
+  while(state.running&&elapsed>=0){
+    const pending=new Set(state.pendingGroups),activeGroups=state.config.groups.filter(group=>benchIds(state,group.id).length>0&&!pending.has(group.id));
+    const untilDue=activeGroups.length?Math.min(...activeGroups.map(group=>Math.max(0,sessionGroup(state,group.id).dueMs))):Infinity;
+    const step=Math.min(elapsed,state.remaining,untilDue);addPlayingTime(state,step);state.remaining=Math.max(0,state.remaining-step);
+    for(const group of activeGroups){const live=sessionGroup(state,group.id),before=live.dueMs;live.dueMs=Math.max(0,before-step);if(!live.alerted&&before>10000&&live.dueMs<=10000){live.alerted=true;events.push({type:'soon',groupId:group.id});}}
+    elapsed-=step;
+    if(state.remaining<=0){state.running=false;state.phase=state.period>=state.config.periods?'finished':'period-break';if(state.phase==='finished'){state.finished=true;state.finishedAt=now;}events.push({type:state.finished?'finished':'period-end',period:state.period});break;}
+    const due=activeGroups.filter(group=>sessionGroup(state,group.id).dueMs<=0).map(group=>group.id);
+    if(due.length){state.pendingGroups=[...new Set([...state.pendingGroups,...due])];events.push({type:'due',groupIds:due});if(state.config.pauseForSubstitutions){state.running=false;state.phase='substitution';break;}state.phase='play';}
+    if(elapsed<=0||(!step&&!due.length))break;
+  }
   state.lastTick=now;
-  if(state.remaining<=0){state.running=false;state.phase=state.period>=state.config.periods?'finished':'period-break';if(state.phase==='finished'){state.finished=true;state.finishedAt=now;}events.push({type:state.finished?'finished':'period-end',period:state.period});return events;}
-  const due=activeGroups.filter(group=>sessionGroup(state,group.id).dueMs<=0).map(group=>group.id);
-  if(due.length){state.running=false;state.phase='substitution';state.pendingGroups=[...new Set([...state.pendingGroups,...due])];events.push({type:'due',groupIds:due});return events;}
   return events;
 }
 
@@ -99,17 +104,17 @@ export function startOrResumeSubstitutionSession(state,now=Date.now()){
 }
 
 export function rotateSubstitutionGroup(state,groupId,now=Date.now()){
-  advanceSubstitutionSession(state,now);const group=configGroup(state,groupId),live=sessionGroup(state,groupId);if(!group||!live)return {out:[],in:[]};
+  advanceSubstitutionSession(state,now);const keepRunning=state.config.pauseForSubstitutions===false&&state.running,group=configGroup(state,groupId),live=sessionGroup(state,groupId);if(!group||!live)return {out:[],in:[]};
   const bench=Math.max(0,live.queue.length-group.onField),amount=Math.min(group.rotateCount,group.onField,bench);if(!amount){live.dueMs=group.intervalMs;live.alerted=false;state.pendingGroups=state.pendingGroups.filter(id=>id!==groupId);return {out:[],in:[]};}
   const out=live.queue.slice(0,amount),incoming=live.queue.slice(group.onField,group.onField+amount),staying=live.queue.slice(amount,group.onField),rest=live.queue.slice(group.onField+amount);
-  live.queue=[...staying,...incoming,...rest,...out];live.dueMs=group.intervalMs;live.alerted=false;state.pendingGroups=state.pendingGroups.filter(id=>id!==groupId);state.running=false;state.phase='substitution';state.lastTick=now;return {out,in:incoming};
+  live.queue=[...staying,...incoming,...rest,...out];live.dueMs=group.intervalMs;live.alerted=false;state.pendingGroups=state.pendingGroups.filter(id=>id!==groupId);state.running=keepRunning;state.phase=keepRunning?'play':'substitution';state.lastTick=now;return {out,in:incoming};
 }
 
 export function forcePlayerSubstitution(state,playerId,now=Date.now()){
-  advanceSubstitutionSession(state,now);const player=state.config.players.find(item=>item.id===playerId&&item.active);if(!player)return null;
+  advanceSubstitutionSession(state,now);const keepRunning=state.config.pauseForSubstitutions===false&&state.running,player=state.config.players.find(item=>item.id===playerId&&item.active);if(!player)return null;
   const group=configGroup(state,player.groupId),live=sessionGroup(state,player.groupId);if(!group||!live)return null;
   const outgoing=live.queue.indexOf(playerId);if(outgoing<0||outgoing>=group.onField||live.queue.length<=group.onField)return null;
-  const incoming=live.queue[group.onField],lineup=live.queue.slice(0,group.onField),rest=live.queue.slice(group.onField+1);lineup[outgoing]=incoming;live.queue=[...lineup,...rest,playerId];live.dueMs=group.intervalMs;live.alerted=false;state.pendingGroups=state.pendingGroups.filter(id=>id!==group.id);state.running=false;state.phase='substitution';state.lastTick=now;return {out:playerId,in:incoming,groupId:group.id};
+  const incoming=live.queue[group.onField],lineup=live.queue.slice(0,group.onField),rest=live.queue.slice(group.onField+1);lineup[outgoing]=incoming;live.queue=[...lineup,...rest,playerId];live.dueMs=group.intervalMs;live.alerted=false;state.pendingGroups=state.pendingGroups.filter(id=>id!==group.id);state.running=keepRunning;state.phase=keepRunning?'play':'substitution';state.lastTick=now;return {out:playerId,in:incoming,groupId:group.id};
 }
 
 export function prepareNextPeriod(state,now=Date.now()){

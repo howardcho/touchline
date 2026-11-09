@@ -12,7 +12,7 @@ const configured=()=>({fieldPlayers:3,periods:2,periodMs:600000,minimumMs:60000,
 ]});
 
 test('fresh defaults start with one editable All Players group',()=>{
- const prefs=defaultSubstitutionPreferences();assert.equal(prefs.groups.length,1);assert.equal(prefs.groups[0].name,'All Players');assert.equal(prefs.fieldPlayers,7);assert.equal(prefs.periods,2);assert.equal(prefs.minimumMs,60000);
+ const prefs=defaultSubstitutionPreferences();assert.equal(prefs.groups.length,1);assert.equal(prefs.groups[0].name,'All Players');assert.equal(prefs.fieldPlayers,7);assert.equal(prefs.periods,2);assert.equal(prefs.minimumMs,60000);assert.equal(prefs.pauseForSubstitutions,true);
 });
 
 test('configuration requires group slots to equal the field and enough assigned players',()=>{
@@ -22,8 +22,8 @@ test('configuration requires group slots to equal the field and enough assigned 
 });
 
 test('saved substitution defaults normalize and persist independently',()=>{
- const local=storage(),prefs=configured();assert.equal(saveSubstitutionPreferences(local,prefs),true);assert.ok(local.values.has(SUBSTITUTION_PREF_KEY));
- const restored=loadSubstitutionPreferences(local);assert.equal(restored.groups[1].offsetMs,30000);assert.deepEqual(restored.groups[0].playerIds,['a','b']);
+ const local=storage(),prefs=configured();prefs.pauseForSubstitutions=false;assert.equal(saveSubstitutionPreferences(local,prefs),true);assert.ok(local.values.has(SUBSTITUTION_PREF_KEY));
+ const restored=loadSubstitutionPreferences(local);assert.equal(restored.groups[1].offsetMs,30000);assert.deepEqual(restored.groups[0].playerIds,['a','b']);assert.equal(restored.pauseForSubstitutions,false);
  const malformed=normalizeSubstitutionPreferences({periods:3,groups:[],players:[]});assert.equal(malformed.periods,2);assert.equal(malformed.groups[0].name,'All Players');
 });
 
@@ -43,6 +43,14 @@ test('timer stops exactly when a group is due and records only live playing time
  const state=createSubstitutionSession(configured(),{now:0});startOrResumeSubstitutionSession(state,1000);
  let events=advanceSubstitutionSession(state,111000);assert.ok(events.some(event=>event.type==='soon'&&event.groupId==='strikers'));assert.equal(state.running,true);
  events=advanceSubstitutionSession(state,130000);assert.ok(events.some(event=>event.type==='due'));assert.equal(state.running,false);assert.equal(state.remaining,480000);assert.equal(state.playMs.a,120000);assert.equal(state.playMs.c,120000);
+});
+
+test('clock can continue while multiple substitutions remain pending',()=>{
+ const prefs=configured();prefs.pauseForSubstitutions=false;prefs.groups[1].offsetMs=0;prefs.groups[1].intervalMs=180000;const state=createSubstitutionSession(prefs,{now:0});startOrResumeSubstitutionSession(state,0);
+ let events=advanceSubstitutionSession(state,120000);assert.ok(events.some(event=>event.type==='due'&&event.groupIds.includes('strikers')));assert.equal(state.running,true);assert.deepEqual(state.pendingGroups,['strikers']);assert.equal(state.remaining,480000);
+ events=advanceSubstitutionSession(state,180000);assert.ok(events.some(event=>event.type==='due'&&event.groupIds.includes('midfield')));assert.equal(state.running,true);assert.deepEqual(state.pendingGroups,['strikers','midfield']);assert.equal(state.playMs.a,180000);
+ const change=rotateSubstitutionGroup(state,'strikers',190000);assert.deepEqual(change,{out:['a'],in:['b']});assert.equal(state.running,true);assert.deepEqual(state.pendingGroups,['midfield']);assert.equal(state.remaining,410000);
+ events=advanceSubstitutionSession(state,600000);assert.ok(events.some(event=>event.type==='period-end'));assert.equal(state.running,false);assert.equal(state.phase,'period-break');assert.equal(state.remaining,0);
 });
 
 test('a period boundary takes priority over a substitution due at the same instant',()=>{
