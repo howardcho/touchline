@@ -94,5 +94,15 @@ test('changing the period length keeps elapsed play and recalculates time remain
 
 test('final summary reports actual playing time by player and group',()=>{
  const state=createSubstitutionSession(configured(),{now:0});startOrResumeSubstitutionSession(state,0);advanceSubstitutionSession(state,60000);finishSubstitutionSession(state,60000);const summary=substitutionSummary(state);
- assert.equal(summary.groups.length,2);assert.equal(summary.groups[0].players[0].playingMs,60000);assert.equal(summary.players.find(player=>player.id==='b').playingMs,0);assert.equal(summary.averageMs,36000);
+ assert.equal(summary.elapsedMs,60000);assert.equal(summary.groups.length,2);assert.equal(summary.groups[0].players[0].playingMs,60000);assert.equal(summary.players.find(player=>player.id==='b').playingMs,0);assert.equal(summary.averageMs,36000);
+});
+
+test('summary excludes overnight wall-clock time while the game is paused',()=>{
+ const state=createSubstitutionSession(configured(),{now:1000});startOrResumeSubstitutionSession(state,1000);advanceSubstitutionSession(state,61000);startOrResumeSubstitutionSession(state,61000);finishSubstitutionSession(state,24*60*60*1000+61000);
+ assert.equal(substitutionSummary(state).elapsedMs,60000);
+});
+
+test('older saved games derive actual clock time without using timestamps',()=>{
+ const state=createSubstitutionSession(configured(),{now:0});state.period=2;state.remaining=420000;delete state.elapsedPlayMs;state.startedAt=1000;state.finishedAt=24*60*60*1000;
+ assert.equal(substitutionSummary(state).elapsedMs,780000);
 });

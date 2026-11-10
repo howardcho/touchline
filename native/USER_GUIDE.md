@@ -56,7 +56,7 @@ In **Roster & rotation settings**, **Pause the game clock while substitutions ar
 
 The roster and settings buttons remain available during the game. A late arrival starts with zero recorded time and can be placed at the front of the next rotation; Touchline does not try to make up time they missed. Removing a player records them as having left early. In-game settings remain session-only unless **Replace saved substitution defaults** is selected.
 
-At halftime or a quarter break, Touchline records the completed period and presents the next lineup. At full time—or after using **End game**—the playing-time report shows the total elapsed game, average player time, and each player’s recorded field time grouped by rotation group. Paused time contributes to elapsed game time but never to player field time.
+At halftime or a quarter break, Touchline records the completed period and presents the next lineup. At full time—or after using **End game**—the playing-time report shows the total time consumed by the game clock, average player time, and each player’s recorded field time grouped by rotation group. Paused time and calendar time beyond the countdown are excluded. Choose **Start new game** in the report to go directly to the next game-day roster.
 
 ## Exact schedules and validation
 

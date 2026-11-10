@@ -70,7 +70,7 @@ function groupState(group,random){
 }
 export function createSubstitutionSession(source,{now=Date.now(),random=Math.random}={}){
   const {valid,errors,config}=validateSubstitutionConfig(source);if(!valid)throw new Error(errors.join(' '));
-  return {version:1,config,groups:config.groups.map(group=>groupState(group,random)),period:1,remaining:config.periodMs,running:false,phase:'lineup',lastTick:null,startedAt:null,finishedAt:null,finished:false,pendingGroups:[],playMs:Object.fromEntries(config.players.map(player=>[player.id,0])),departed:[],createdAt:now};
+  return {version:1,config,groups:config.groups.map(group=>groupState(group,random)),period:1,remaining:config.periodMs,running:false,phase:'lineup',lastTick:null,startedAt:null,finishedAt:null,finished:false,pendingGroups:[],elapsedPlayMs:0,playMs:Object.fromEntries(config.players.map(player=>[player.id,0])),departed:[],createdAt:now};
 }
 export const sessionGroup=(state,id)=>state.groups.find(group=>group.id===id);
 export const configGroup=(state,id)=>state.config.groups.find(group=>group.id===id);
@@ -78,7 +78,8 @@ export const onFieldIds=(state,id)=>{const live=sessionGroup(state,id),group=con
 export const benchIds=(state,id)=>{const live=sessionGroup(state,id),group=configGroup(state,id);return live&&group?live.queue.slice(group.onField):[];};
 export const currentLineup=state=>state.config.groups.flatMap(group=>onFieldIds(state,group.id));
 
-function addPlayingTime(state,ms){if(ms<=0)return;for(const id of currentLineup(state))state.playMs[id]=(state.playMs[id]??0)+ms;}
+function legacyElapsedPlay(state){const periodMs=Math.max(0,state?.config?.periodMs??0),period=Math.max(1,state?.period??1),remaining=Math.max(0,Math.min(periodMs,state?.remaining??periodMs));return Math.max(0,(period-1)*periodMs+(periodMs-remaining));}
+function addPlayingTime(state,ms){if(ms<=0)return;state.elapsedPlayMs=(Number.isFinite(state.elapsedPlayMs)?state.elapsedPlayMs:legacyElapsedPlay(state))+ms;for(const id of currentLineup(state))state.playMs[id]=(state.playMs[id]??0)+ms;}
 export function advanceSubstitutionSession(state,now=Date.now()){
   const events=[];if(!state?.running||state.finished)return events;
   let elapsed=Math.max(0,now-state.lastTick);
@@ -161,7 +162,7 @@ export function reconfigureSubstitutionSession(state,source,now=Date.now()){
 
 export function finishSubstitutionSession(state,now=Date.now()){advanceSubstitutionSession(state,now);state.running=false;state.finished=true;state.phase='finished';state.finishedAt=now;return state;}
 export function substitutionSummary(state){
-  const elapsed=Math.max(0,(state.finishedAt??Date.now())-(state.startedAt??state.createdAt));
+  const elapsed=Math.max(0,Number.isFinite(state.elapsedPlayMs)?state.elapsedPlayMs:legacyElapsedPlay(state));
   const groups=state.config.groups.map(group=>({id:group.id,name:group.name,players:state.config.players.filter(player=>player.groupId===group.id).map(player=>({...player,playingMs:state.playMs[player.id]??0})),averageMs:0}));
   for(const group of groups)group.averageMs=group.players.length?group.players.reduce((sum,player)=>sum+player.playingMs,0)/group.players.length:0;
   const players=groups.flatMap(group=>group.players),averageMs=players.length?players.reduce((sum,player)=>sum+player.playingMs,0)/players.length:0;

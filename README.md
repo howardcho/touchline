@@ -34,7 +34,7 @@ Team Substitutions includes:
 - Live period and group clocks, ten-second visual/audio substitution warnings, group or individual forced substitutions, and a choice to pause the game clock during changes or let it continue running.
 - Compact group tabs across roster, lineup, settings, and live play. The live group panel combines the players on the field with the next planned change.
 - Game-day roster changes for absences, late arrivals, early departures, and moves between groups without trying to make up missed time.
-- A final playing-time report for every player and rotation group. Defaults and active games are stored locally for recovery.
+- A final playing-time report for every player and rotation group, using only time accumulated by the game clock. The report can start the next game directly. Defaults and active games are stored locally for recovery.
 
 See the [app behavior and schedule guide](native/USER_GUIDE.md) and [audio credits](audio/CREDITS.txt). Complete rotations give equal game counts; two-, three-, and four-team schedules include consecutive appearances, while the five-team loop avoids them.
 
